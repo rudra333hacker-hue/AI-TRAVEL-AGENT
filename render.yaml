@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tripcraft-ai
+    runtime: docker
+    plan: free
+    envVars:
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: FOURSQUARE_API_KEY
+        sync: false
+      - key: PORT
+        value: 8000
+      - key: HOST
+        value: 0.0.0.0
+      - key: SESSION_TTL_MINUTES
+        value: 30
