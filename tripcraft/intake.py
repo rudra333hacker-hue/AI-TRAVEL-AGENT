@@ -171,7 +171,11 @@ def extract_tier1_from_messages(messages: list[dict]) -> Tier1State:
     
     for msg in messages:
         role = msg.get("role")
-        content = msg.get("content", "")
+        content = msg.get("content")
+        if content is None:
+            content = ""
+        elif not isinstance(content, str) and not isinstance(content, list):
+            content = str(content)
         
         # Flatten content if list
         if isinstance(content, list):
@@ -409,6 +413,8 @@ def _build_partial_question(missing: list[str], state: Tier1State) -> str:
 
 def is_greeting(text: str) -> bool:
     """Check if the text is a simple greeting."""
+    if not isinstance(text, str):
+        return False
     clean = re.sub(r'[^\w\s]', '', text.strip().lower())
     greetings = {
         "hi", "hello", "hey", "hola", "greetings", "good morning", 
@@ -443,7 +449,9 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
         return False, None
 
     # Check if the latest user message is just a greeting
-    last_user_content = user_msgs[-1].get("content", "")
+    last_user_content = user_msgs[-1].get("content")
+    if last_user_content is None:
+        last_user_content = ""
     if isinstance(last_user_content, str):
         if is_greeting(last_user_content):
             return False, None

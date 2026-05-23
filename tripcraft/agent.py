@@ -231,12 +231,24 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
                     )
 
     # 2. Extract user messages for context
-    user_msgs = [m["content"] for m in messages if m["role"] == "user"]
+    user_msgs = []
+    for m in messages:
+        if m.get("role") == "user":
+            c = m.get("content")
+            if c is None:
+                c = ""
+            elif isinstance(c, list):
+                c = " ".join([p.get("text", "") for p in c if isinstance(p, dict) and p.get("type") == "text"])
+            elif not isinstance(c, str):
+                c = str(c)
+            user_msgs.append(c)
     user_text = " ".join(user_msgs).lower()
 
     # 3. Origin validation for transport/flights — relaxed check
     if name in ["search_flights", "search_transportation"]:
-        origin = args.get("origin", "")
+        origin = args.get("origin") or ""
+        if not isinstance(origin, str):
+            origin = str(origin)
         if origin:
             # Only reject if origin is extremely short/conspicuously fake
             clean_origin = origin.strip()
