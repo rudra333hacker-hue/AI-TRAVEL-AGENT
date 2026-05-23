@@ -168,7 +168,16 @@ def extract_tier1_from_messages(messages: list[dict]) -> Tier1State:
     state = Tier1State()
 
     # Collect all user text
-    user_texts = [m["content"] for m in messages if m.get("role") == "user"]
+    user_texts = []
+    for m in messages:
+        if m.get("role") == "user":
+            content = m.get("content", "")
+            if isinstance(content, str):
+                user_texts.append(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        user_texts.append(part.get("text", ""))
     combined = " ".join(user_texts).lower()
 
     # ── Budget ──

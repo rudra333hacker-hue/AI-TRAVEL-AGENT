@@ -7,24 +7,7 @@ from tripcraft.tools.web_search import search_web
 
 logger = logging.getLogger("tripcraft")
 
-DEFINITION = {
-    "type": "function",
-    "function": {
-        "name": "search_transportation",
-        "description": "Compare travel options between two cities, including flights, trains, buses, and driving/car rentals with prices and durations.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "origin": {"type": "string", "description": "Origin city name, e.g., 'New York' or 'Mumbai'"},
-                "destination": {"type": "string", "description": "Destination city name, e.g., 'Washington DC' or 'Goa'"},
-                "departure_date": {"type": "string", "description": "Departure date in YYYY-MM-DD format"},
-                "return_date": {"type": "string", "description": "Return date in YYYY-MM-DD format (optional)"},
-                "adults": {"type": "integer", "default": 1, "description": "Number of adult passengers"},
-            },
-            "required": ["origin", "destination", "departure_date"],
-        },
-    },
-}
+# Tool definition is now dynamically generated from type hints and docstring.
 
 async def _fetch_real_transport_data(origin: str, destination: str, departure_date: str, adults: int, distance_km: float) -> dict:
     """Try to fetch real operator names and prices via web search.
@@ -125,25 +108,45 @@ def haversine_distance(lat1, lon1, lat2, lon2) -> float:
 
 async def search(origin: str, destination: str, departure_date: str,
                  return_date: str = None, adults: int = 1) -> dict:
-    """Compare flights, trains, buses, and car rentals dynamically based on distance."""
+    """Compare travel options between two cities, including flights, trains, buses, and driving/car rentals with prices and durations.
+
+    Args:
+        origin (str): Origin city name, e.g., 'New York' or 'Mumbai'.
+        destination (str): Destination city name, e.g., 'Washington DC' or 'Goa'.
+        departure_date (str): Departure date in YYYY-MM-DD format.
+        return_date (str): Return date in YYYY-MM-DD format (optional).
+        adults (int): Number of adult passengers. Default is 1.
+
+    Returns:
+        dict: A dictionary comparing different travel options with providers, prices, durations, and booking links.
+    """
     try:
         adults = int(adults)
-        logger.info(f"Comparing transportation options from {origin} to {destination}")
+    except (ValueError, TypeError):
+        adults = 1
 
+    logger.info(f"Comparing transportation options from {origin} to {destination}")
+
+    geo_warning = None
+    try:
         # Geocode origin and destination
         origin_loc = await geocode(origin)
         dest_loc = await geocode(destination)
 
-        if "error" in origin_loc:
-            return {"error": f"Failed to geocode origin: {origin_loc['error']}"}
-        if "error" in dest_loc:
-            return {"error": f"Failed to geocode destination: {dest_loc['error']}"}
+        if "error" in origin_loc or "error" in dest_loc:
+            raise ValueError("Geocoding returned error")
 
         # Calculate distance
         distance = haversine_distance(
             origin_loc["latitude"], origin_loc["longitude"],
             dest_loc["latitude"], dest_loc["longitude"]
         )
+    except Exception as geocode_err:
+        logger.warning(f"Geocoding failed in transport search: {geocode_err}. Using default route coords.")
+        origin_loc = {"name": origin, "latitude": 19.0760, "longitude": 72.8777}
+        dest_loc = {"name": destination, "latitude": 15.4919, "longitude": 73.8278}
+        distance = 500.0
+        geo_warning = f"Could not geocode cities '{origin}' or '{destination}' to retrieve exact coordinates. Displaying estimates for a standard 500km route."
 
         options = []
         route_seed = sum(ord(c) for c in origin + destination)
@@ -245,6 +248,9 @@ async def search(origin: str, destination: str, departure_date: str,
             "distance_km": round(distance, 1),
             "options": options
         }
+
+        if geo_warning:
+            result["warning"] = geo_warning
 
         # Attach search source info
         if real_data.get("_source") == "web":

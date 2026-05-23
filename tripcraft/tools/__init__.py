@@ -2,6 +2,8 @@ import logging
 from typing import Any
 from tripcraft.tools import flights, hotels, weather, places, transportation, web_search
 
+from tripcraft.tools.schema import generate_tool_schema
+
 logger = logging.getLogger("tripcraft")
 
 class ToolRegistry:
@@ -11,20 +13,20 @@ class ToolRegistry:
         self._config = config
 
         # Always available (transportation and weather have fallback/keyless options)
-        self._register("get_weather_forecast", weather.get_weather_forecast, weather.DEFINITION)
-        self._register("search_transportation", transportation.search, transportation.DEFINITION)
-        self._register("search_web", web_search.search_web, web_search.DEFINITION)
+        self._register("get_weather_forecast", weather.get_weather_forecast, generate_tool_schema(weather.get_weather_forecast, "get_weather_forecast"))
+        self._register("search_transportation", transportation.search, generate_tool_schema(transportation.search, "search_transportation"))
+        self._register("search_web", web_search.search_web, generate_tool_schema(web_search.search_web, "search_web"))
 
         flights_tool = flights.FlightSearch(config)
-        self._register("search_flights", flights_tool.search, flights.DEFINITION)
+        self._register("search_flights", flights_tool.search, generate_tool_schema(flights_tool.search, "search_flights"))
         
         hotels_tool = hotels.HotelSearch(config)
-        self._register("search_hotels", hotels_tool.search, hotels.DEFINITION)
+        self._register("search_hotels", hotels_tool.search, generate_tool_schema(hotels_tool.search, "search_hotels"))
 
         # Conditional on API keys
         if config.has_foursquare:
             places_tool = places.PlaceSearch(config)
-            self._register("search_places", places_tool.search, places.DEFINITION)
+            self._register("search_places", places_tool.search, generate_tool_schema(places_tool.search, "search_places"))
         else:
             logger.warning("Foursquare API key missing. Places search tool is disabled.")
 

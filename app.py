@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 from pathlib import Path
@@ -21,12 +22,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger("tripcraft")
 
+class LocalAgentConfig:
+    LLM_PROVIDER = "nvidia"
+    NVIDIA_MODEL = "moonshotai/kimi-k2.6"
+    NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ──
     logger.info("Initializing TripCraft AI v4.0 Services...")
     try:
         config = Config()
+        # Enforce LocalAgentConfig settings
+        config.llm_provider = LocalAgentConfig.LLM_PROVIDER
+        config.llm_model = LocalAgentConfig.NVIDIA_MODEL
+        config.active_base_url = LocalAgentConfig.NVIDIA_BASE_URL
+        # Set active_api_key accordingly
+        config.nvidia_key = os.getenv("NVIDIA_API_KEY", "")
+        config.nvidia_key_2 = os.getenv("NVIDIA_API_KEY_2", "")
+        config.active_api_key = config.nvidia_key_2 or config.nvidia_key
     except RuntimeError as e:
         logger.error(f"Configuration initialization failed: {e}")
         # We don't crash startup immediately so the health check can run,
@@ -101,7 +115,7 @@ async def chat(req: ChatRequest):
 
     async def sse_generator():
         try:
-            async for event in agent.chat_stream(req.message):
+            async for event in agent.chat_stream(req.message, images=req.images):
                 yield f"event: {event.type}\ndata: {event.json()}\n\n"
         except Exception as e:
             logger.exception("Error in SSE chat generator")

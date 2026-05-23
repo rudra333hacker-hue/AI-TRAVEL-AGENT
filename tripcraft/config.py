@@ -11,7 +11,7 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 # ── Default models per provider ──
 DEFAULT_MODELS = {
-    PROVIDER_NVIDIA: "meta/llama-3.3-70b-instruct",
+    PROVIDER_NVIDIA: "moonshotai/kimi-k2.6",
     PROVIDER_AIMLAPI: "openai/gpt-4o",
 }
 

@@ -21,9 +21,29 @@ class TripCraftAgent:
         self.tools = tools
         self.session = session
 
-    async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+    async def chat_stream(self, user_message: str, images: list[str] | None = None) -> AsyncGenerator[StreamEvent, None]:
+        # ── Raw JSON Dump Parsing ──
+        try:
+            parsed = json.loads(user_message)
+            if isinstance(parsed, (dict, list)):
+                user_message = f"User uploaded raw JSON context:\n```json\n{json.dumps(parsed, indent=2, ensure_ascii=False)}\n```"
+        except Exception:
+            pass
+
+        # ── Multimodal Content Structuring ──
+        if images:
+            content_list = [{"type": "text", "text": user_message}]
+            for img in images:
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {"url": self._format_image_url(img)}
+                })
+            user_payload = {"role": "user", "content": content_list}
+        else:
+            user_payload = {"role": "user", "content": user_message}
+
         # 1. Add user message to session history
-        self.session.add_message({"role": "user", "content": user_message})
+        self.session.add_message(user_payload)
 
         yield StreamEvent("thinking", {"step": 0, "status": "Understanding your request..."})
 
@@ -140,6 +160,14 @@ class TripCraftAgent:
                 for tc in msg.tool_calls
             ]
         return d
+
+    @staticmethod
+    def _format_image_url(img_str: str) -> str:
+        if img_str.startswith(("http://", "https://")):
+            return img_str
+        if img_str.startswith("data:image/"):
+            return img_str
+        return f"data:image/jpeg;base64,{img_str}"
 
 
 def _validate_args(name: str, args: dict, messages: list) -> str | None:

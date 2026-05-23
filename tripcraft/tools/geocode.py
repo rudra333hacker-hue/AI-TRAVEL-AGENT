@@ -245,3 +245,99 @@ def _fuzzy_lookup(name: str) -> dict | None:
             return val
 
     return None
+
+
+async def _resolve_via_web_search(place_name: str) -> dict | None:
+    """Use DuckDuckGo web search to find coordinates of a place.
+    
+    Args:
+        place_name (str): The name of the place.
+        
+    Returns:
+        dict | None: Dictionary of coordinates if resolved, else None.
+    """
+    try:
+        from duckduckgo_search import DDGS
+
+        query = f"{place_name} latitude longitude coordinates"
+        logger.info(f"Geocoding via web search: {query}")
+
+        def _do_search(q: str) -> list:
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.text(q, max_results=5):
+                    results.append({
+                        "title": r.get("title", ""),
+                        "snippet": r.get("body", ""),
+                        "url": r.get("href", ""),
+                    })
+            return results
+
+        results = await asyncio.to_thread(_do_search, query)
+        if not results:
+            return None
+
+        combined = " ".join(f"{r.get('title', '')} {r.get('snippet', '')}" for r in results)
+
+        coord_patterns = [
+            r'(-?\d+\.\d+)[°\s]*[NnSs]?[,;\s]+(-?\d+\.\d+)[°\s]*[EeWw]?',
+            r'(-?\d+\.\d+)[°\s]*[NnSs]?[,\s]+(-?\d+\.\d+)[°\s]*[EeWw]?',
+            r'lat[itude]*[:\s]*(-?\d+\.\d+)[,\s]+l[o]*[ng]*[:\s]*(-?\d+\.\d+)',
+        ]
+
+        for pattern in coord_patterns:
+            match = re.search(pattern, combined)
+            if match:
+                lat = float(match.group(1))
+                lon = float(match.group(2))
+                if -90 <= lat <= 90 and -180 <= lon <= 180:
+                    logger.info(f"Web search resolved '{place_name}' -> ({lat}, {lon})")
+                    return {
+                        "name": place_name.title(),
+                        "country": "",
+                        "latitude": lat,
+                        "longitude": lon,
+                        "timezone": "UTC",
+                    }
+
+        return None
+    except Exception as e:
+        logger.warning(f"Web search geocoding failed for '{place_name}': {e}")
+        return None
+
+
+async def _resolve_via_openmeteo(place_name: str) -> dict | None:
+    """Resolve location using Open-Meteo Geocoding API.
+    
+    Args:
+        place_name (str): The name of the place.
+        
+    Returns:
+        dict | None: Dictionary of coordinates if resolved, else None.
+    """
+    try:
+        from tripcraft.utils import request_with_retry
+
+        url = "https://geocoding-api.open-meteo.com/v1/search"
+        params = {"name": place_name, "count": 10, "language": "en"}
+
+        response = await request_with_retry("GET", url, params=params)
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+        results = data.get("results", [])
+        if not results:
+            return None
+
+        best = results[0]
+        return {
+            "name": best.get("name", place_name.title()),
+            "country": best.get("country", ""),
+            "latitude": best.get("latitude"),
+            "longitude": best.get("longitude"),
+            "timezone": best.get("timezone", "UTC"),
+        }
+    except Exception as e:
+        logger.warning(f"Open-Meteo geocoding failed for '{place_name}': {e}")
+        return None
