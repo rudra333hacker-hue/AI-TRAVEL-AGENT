@@ -1,6 +1,6 @@
 import logging
 from typing import Any
-from tripcraft.tools import flights, hotels, weather, places, geocode, transportation
+from tripcraft.tools import flights, hotels, weather, places, geocode, transportation, web_search
 
 logger = logging.getLogger("tripcraft")
 
@@ -10,11 +10,14 @@ class ToolRegistry:
         self._definitions = []
         self._config = config
 
-        # Always available (flights, transportation, and hotels have fallback/keyless options)
+        # Always available (transportation and weather have fallback/keyless options)
         self._register("get_weather_forecast", weather.get_weather_forecast, weather.DEFINITION)
         self._register("geocode", geocode.geocode, geocode.DEFINITION)
-        self._register("search_flights", flights.search, flights.DEFINITION)
         self._register("search_transportation", transportation.search, transportation.DEFINITION)
+        self._register("search_web", web_search.search_web, web_search.DEFINITION)
+
+        flights_tool = flights.FlightSearch(config)
+        self._register("search_flights", flights_tool.search, flights.DEFINITION)
         
         hotels_tool = hotels.HotelSearch(config)
         self._register("search_hotels", hotels_tool.search, hotels.DEFINITION)
@@ -59,11 +62,15 @@ class ToolRegistry:
             },
             "search_flights": {
                 "status": "available",
-                "provider": "simulated"
+                "provider": "amadeus" if self._config.has_amadeus else "simulated"
             },
             "search_transportation": {
                 "status": "available",
-                "provider": "simulated"
+                "provider": "simulated + web enhancement"
+            },
+            "search_web": {
+                "status": "available",
+                "provider": "duckduckgo"
             },
             "search_hotels": {
                 "status": "available",

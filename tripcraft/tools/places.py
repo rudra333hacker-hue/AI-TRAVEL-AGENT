@@ -1,4 +1,3 @@
-import httpx
 import logging
 import random
 from tripcraft.tools.geocode import geocode

@@ -1,4 +1,3 @@
-import httpx
 import logging
 import random
 from datetime import datetime
@@ -110,6 +109,10 @@ class HotelSearch:
                                 "category": cat_desc,
                                 "price_per_night": float(price_per_night),
                                 "total_price": float(total_price),
+                                "price_per_night_usd": float(price_per_night),
+                                "total_price_usd": float(total_price),
+                                "price_per_night_inr": float(price_per_night * 83),
+                                "total_price_inr": float(total_price * 83),
                                 "currency": "USD",
                                 "live_offer": True,
                                 "note": f"Retrieved via Foursquare. Estimated price for {days} night(s)."
@@ -151,6 +154,10 @@ class HotelSearch:
                         "category": htype,
                         "price_per_night": float(price_per_night),
                         "total_price": float(total_price),
+                        "price_per_night_usd": float(price_per_night),
+                        "total_price_usd": float(total_price),
+                        "price_per_night_inr": float(price_per_night * 83),
+                        "total_price_inr": float(total_price * 83),
                         "currency": "USD",
                         "live_offer": False,
                         "note": f"Simulated lodging. Price estimated for {days} night(s)."

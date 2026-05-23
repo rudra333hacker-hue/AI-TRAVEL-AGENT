@@ -28,7 +28,7 @@ class Session:
     def to_response(self, tools_available: list) -> dict:
         # Check which tools are actually available based on config/keys
         # (e.g. if we have Amadeus keys but not Foursquare keys)
-        all_tools = ["search_flights", "search_hotels", "get_weather_forecast", "search_places", "geocode"]
+        all_tools = ["search_flights", "search_hotels", "get_weather_forecast", "search_places", "geocode", "search_transportation", "search_web"]
         degraded = [t for t in all_tools if t not in tools_available]
         
         return {
@@ -63,8 +63,9 @@ class SessionManager:
             raise KeyError(session_id)
         return self._store[session_id]
 
-    def delete(self, session_id: str):
-        self._store.pop(session_id, None)
+    async def delete(self, session_id: str):
+        async with self._lock:
+            self._store.pop(session_id, None)
 
     @property
     def active_count(self) -> int:

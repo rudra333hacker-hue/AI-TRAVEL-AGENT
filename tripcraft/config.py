@@ -6,8 +6,8 @@ class Config:
         load_dotenv()
         self.nvidia_key = os.getenv("NVIDIA_API_KEY")
         self.foursquare_key = os.getenv("FOURSQUARE_API_KEY")
-        self.kiwi_key = os.getenv("KIWI_API_KEY")
-        self.rapidapi_key = os.getenv("RAPIDAPI_KEY")
+        self.amadeus_client_id = os.getenv("AMADEUS_CLIENT_ID")
+        self.amadeus_client_secret = os.getenv("AMADEUS_CLIENT_SECRET")
         self.host = os.getenv("HOST", "0.0.0.0")
         self.port = int(os.getenv("PORT", "8000"))
         self.session_ttl = int(os.getenv("SESSION_TTL_MINUTES", "30"))
@@ -23,9 +23,5 @@ class Config:
         return bool(self.foursquare_key)
 
     @property
-    def has_kiwi(self) -> bool:
-        return bool(self.kiwi_key)
-
-    @property
-    def has_rapidapi(self) -> bool:
-        return bool(self.rapidapi_key)
+    def has_amadeus(self) -> bool:
+        return bool(self.amadeus_client_id and self.amadeus_client_secret)

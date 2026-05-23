@@ -19,6 +19,10 @@ DEFINITION = {
 
 async def get_weather_forecast(city: str, days: int = 7) -> dict:
     """Get weather forecast for a city by first geocoding the city and then querying Open-Meteo forecast API."""
+    try:
+        days = int(days)
+    except (ValueError, TypeError):
+        days = 7
     loc = await geocode(city)
     if "error" in loc:
         return loc

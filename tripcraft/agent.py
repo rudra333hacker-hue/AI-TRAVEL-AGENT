@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import AsyncGenerator
 
@@ -72,8 +73,13 @@ class TripCraftAgent:
                 "step": round_num
             })
 
-            # Call tool function (all tools are async)
-            result = await self.tools.execute(name, args)
+            # Validate arguments to prevent fabrication of starting location/destination
+            validation_error = _validate_args(name, args, self.session.messages)
+            if validation_error:
+                result = {"error": validation_error}
+            else:
+                # Call tool function (all tools are async)
+                result = await self.tools.execute(name, args)
 
             yield StreamEvent("tool_result", {
                 "name": name,
@@ -114,6 +120,65 @@ class TripCraftAgent:
         return d
 
 
+def _validate_args(name: str, args: dict, messages: list) -> str | None:
+    """Validate tool arguments against chat history and prevent date/origin fabrication.
+    
+    Returns an error message string if validation fails, or None if valid.
+    """
+    # 1. Date validation (must not be in the past, e.g. < 2026)
+    date_params = ["check_in", "check_out", "departure_date", "return_date"]
+    for param in date_params:
+        if param in args and args[param]:
+            val = str(args[param])
+            match = re.match(r"^(\d{4})-\d{2}-\d{2}$", val)
+            if match:
+                year = int(match.group(1))
+                if year < 2026:
+                    return f"Validation Error: The year in {param} '{val}' is {year}, which is in the past. The current year is 2026. Please use dates in 2026 or later."
+
+    # 2. Extract user messages to verify if origin/destination/dates/budget were discussed
+    user_msgs = [m["content"] for m in messages if m["role"] == "user"]
+    user_text = " ".join(user_msgs).lower()
+
+    # 3. Origin validation for transport/flights
+    if name in ["search_flights", "search_transportation"]:
+        origin = args.get("origin", "")
+        if origin:
+            # Check if origin city name or major words of it are mentioned in user messages
+            words = [w for w in re.findall(r"\b\w+\b", origin.lower()) if len(w) > 2]
+            if not words or not any(w in user_text for w in words):
+                return (
+                    "Validation Error: Starting location is missing or fabricated. "
+                    "The user has not specified where they are starting/departing from. "
+                    "Please stop planning and ask the user explicitly: 'Where will you be starting your trip from?'"
+                )
+
+    # 4. Mandatory Tier 1 Intake Check
+    if name in ["search_hotels", "search_flights", "search_transportation"]:
+        # Check dates
+        months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+                  "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+                  "tomorrow", "next week", "next month", "day", "date", "2026"]
+        has_dates = any(m in user_text for m in months) or any(char.isdigit() for char in user_text)
+        
+        # Check budget/currency
+        budget_keywords = ["budget", "money", "rupee", "inr", "usd", "dollar", "price", "cost", "₹", "$"]
+        has_budget = any(k in user_text for k in budget_keywords) or any(char.isdigit() for char in user_text)
+        
+        if not has_dates:
+            return (
+                "Validation Error: Travel dates/duration are missing in user inputs. "
+                "Please ask the user for their travel dates, month, or duration."
+            )
+        if not has_budget:
+            return (
+                "Validation Error: Budget and preferred currency are missing in user inputs. "
+                "Please ask the user for their budget and whether they prefer Rupees/INR or USD."
+            )
+
+    return None
+
+
 def _summarize(name: str, result: dict) -> str:
     """Human-readable one-liner for the SSE stream (not the full JSON)."""
     if "error" in result:
@@ -149,8 +214,12 @@ def _summarize(name: str, result: dict) -> str:
     elif name == "search_places":
         places = result.get("places", [])
         return f"{len(places)} locations/attractions found"
-        
+
     elif name == "geocode":
         return f"{result.get('name', '?')}, {result.get('country', '?')} ({result.get('latitude')}, {result.get('longitude')})"
-        
+
+    elif name == "search_web":
+        count = result.get("result_count", 0)
+        return f"Found {count} web results for '{result.get('query', '?')}'"
+
     return "Done"

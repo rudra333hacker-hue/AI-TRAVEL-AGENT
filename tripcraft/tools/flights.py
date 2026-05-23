@@ -1,7 +1,9 @@
+import asyncio
 import math
 import logging
 import random
-from datetime import datetime
+import re
+from amadeus import Client
 from tripcraft.tools.geocode import geocode
 
 logger = logging.getLogger("tripcraft")
@@ -10,7 +12,7 @@ DEFINITION = {
     "type": "function",
     "function": {
         "name": "search_flights",
-        "description": "Search for realistic flight options, prices, and durations between two cities.",
+        "description": "Search for realistic flight options, prices, and durations between two cities using live data (Amadeus) or distance-based simulation.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -26,15 +28,267 @@ DEFINITION = {
     },
 }
 
+class FlightSearch:
+    def __init__(self, config):
+        self._config = config
+        self._amadeus = None
+        if config.has_amadeus:
+            try:
+                self._amadeus = Client(
+                    client_id=config.amadeus_client_id,
+                    client_secret=config.amadeus_client_secret,
+                )
+                logger.info("Amadeus client initialized for flight search")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Amadeus client: {e}. Will use simulated data.")
+
+    async def search(self, origin: str, destination: str, departure_date: str,
+                     return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
+        """Search for flights using Amadeus API, falling back to simulated data."""
+        try:
+            adults = int(adults)
+            max_results = int(max_results)
+
+            # Try Amadeus first if configured
+            if self._amadeus:
+                try:
+                    result = await self._search_amadeus(origin, destination, departure_date, return_date, adults, max_results)
+                    if result and result.get("flights"):
+                        return result
+                except Exception as e:
+                    logger.warning(f"Amadeus flight search failed: {e}. Falling back to simulated data.")
+
+            # Fallback to simulated data
+            return await self._search_simulated(origin, destination, departure_date, return_date, adults, max_results)
+
+        except Exception as e:
+            logger.error(f"Flight search error: {e}")
+            return {"error": f"Flight search failed: {str(e)}", "flights": []}
+
+    async def _resolve_airport_code(self, city_name: str) -> str | None:
+        """Use Amadeus location search to resolve a city name to an IATA airport code.
+
+        Runs in a thread to avoid blocking the event loop (Amadeus SDK is synchronous).
+        """
+        try:
+            response = await asyncio.to_thread(
+                self._amadeus.reference_data.locations.get,
+                keyword=city_name,
+                subType="AIRPORT",
+            )
+            data = response.data if hasattr(response, 'data') else (response.result.get('data', []) if isinstance(response.result, dict) else [])
+            if data:
+                for loc in data:
+                    if loc.get('subType') == 'AIRPORT' and loc.get('iataCode'):
+                        return loc['iataCode']
+                if data[0].get('iataCode'):
+                    return data[0]['iataCode']
+            return None
+        except Exception as e:
+            logger.warning(f"Amadeus airport code resolution failed for '{city_name}': {e}")
+            return None
+
+    async def _search_amadeus(self, origin: str, destination: str, departure_date: str,
+                               return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
+        """Search flights using the Amadeus Flight Offers Search API.
+
+        Runs in a thread to avoid blocking the event loop (Amadeus SDK is synchronous).
+        """
+        # Resolve city names to IATA airport codes
+        origin_code = await self._resolve_airport_code(origin)
+        dest_code = await self._resolve_airport_code(destination)
+
+        if not origin_code:
+            return {"error": f"Could not resolve origin '{origin}' to an airport code", "flights": []}
+        if not dest_code:
+            return {"error": f"Could not resolve destination '{destination}' to an airport code", "flights": []}
+
+        logger.info(f"Amadeus flight search: {origin_code} -> {dest_code} on {departure_date}")
+
+        # Build request parameters
+        params = {
+            "originLocationCode": origin_code,
+            "destinationLocationCode": dest_code,
+            "departureDate": departure_date,
+            "adults": adults,
+            "max": min(max_results, 10),
+        }
+        if return_date:
+            params["returnDate"] = return_date
+
+        # Execute the API call in a thread (Amadeus SDK is synchronous)
+        response = await asyncio.to_thread(
+            self._amadeus.shopping.flight_offers_search.get,
+            **params,
+        )
+        offers = response.data if hasattr(response, 'data') else (response.result.get('data', []) if isinstance(response.result, dict) else [])
+
+        if not offers:
+            logger.info(f"No Amadeus flight offers found for {origin_code} -> {dest_code}")
+            return {"flights": []}
+
+        flights = []
+        for offer in offers[:max_results]:
+            try:
+                itineraries = offer.get("itineraries", [])
+                first_itinerary = itineraries[0] if itineraries else {}
+                segments = first_itinerary.get("segments", [])
+
+                price_info = offer.get("price", {})
+                grand_total = price_info.get("grandTotal", "N/A")
+                currency = price_info.get("currency", "USD")
+
+                first_segment = segments[0] if segments else {}
+                last_segment = segments[-1] if segments else {}
+
+                dep_time = first_segment.get("departure", {}).get("at", departure_date + "T00:00:00")
+                arr_time = last_segment.get("arrival", {}).get("at", "")
+
+                stops = len(segments) - 1 if segments else 0
+
+                duration_iso = first_itinerary.get("duration", "")
+                duration_str = _format_duration(duration_iso)
+
+                airline_code = first_segment.get("carrierCode", "")
+                airline_name = _get_airline_name(airline_code)
+                flight_number = first_segment.get("number", "")
+
+                flights.append({
+                    "airline": airline_name or f"Airline {airline_code}",
+                    "airline_code": airline_code,
+                    "flight_number": flight_number,
+                    "origin_city": origin,
+                    "destination_city": destination,
+                    "origin_airport": origin_code,
+                    "destination_airport": dest_code,
+                    "departure_time": dep_time,
+                    "arrival_time": arr_time,
+                    "stops": stops,
+                    "duration": duration_str,
+                    "price": float(grand_total) if grand_total != "N/A" else 0,
+                    "price_usd": float(grand_total) if grand_total != "N/A" else 0,
+                    "price_inr": round(float(grand_total) * 83.0, 2) if grand_total != "N/A" else 0,
+                    "currency": currency,
+                    "note": "Live pricing via Amadeus API",
+                })
+            except Exception as e:
+                logger.warning(f"Skipping Amadeus offer due to parse error: {e}")
+                continue
+
+        return {"flights": flights}
+
+    async def _search_simulated(self, origin: str, destination: str, departure_date: str,
+                                return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
+        """Fallback: simulate realistic flight search using geocoded distance and real-world airline routes."""
+        logger.info(f"Geocoding flight origin: {origin} and destination: {destination}")
+        origin_loc = await geocode(origin)
+        dest_loc = await geocode(destination)
+
+        if "error" in origin_loc:
+            return {"error": f"Failed to geocode origin: {origin_loc['error']}", "flights": []}
+        if "error" in dest_loc:
+            return {"error": f"Failed to geocode destination: {dest_loc['error']}", "flights": []}
+
+        distance = haversine_distance(
+            origin_loc["latitude"], origin_loc["longitude"],
+            dest_loc["latitude"], dest_loc["longitude"]
+        )
+
+        duration_hours = (distance / 800.0) + 0.6
+        base_price = 80.0 + (distance * 0.08)
+
+        carriers = get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
+
+        flights = []
+        route_seed = sum(ord(c) for c in origin + destination)
+        rng = random.Random(route_seed)
+
+        for i in range(min(max_results, len(carriers))):
+            carrier = carriers[i]
+            price_multiplier = rng.uniform(0.85, 1.25)
+            ticket_price = round(base_price * price_multiplier * adults, 2)
+
+            if distance < 1200:
+                stops = 0
+                flight_dur = duration_hours
+            elif distance < 4500:
+                stops = rng.choice([0, 1])
+                flight_dur = duration_hours + (stops * rng.uniform(1.5, 3.0))
+            else:
+                stops = rng.choice([1, 2])
+                flight_dur = duration_hours + (stops * rng.uniform(2.0, 4.5))
+
+            hours = int(flight_dur)
+            minutes = int((flight_dur - hours) * 60)
+            duration_str = f"{hours}h {minutes}m"
+
+            dep_hour = rng.randint(6, 21)
+            dep_min = rng.choice([0, 15, 30, 45])
+            dep_time = f"{departure_date}T{dep_hour:02d}:{dep_min:02d}:00"
+
+            flights.append({
+                "airline": carrier["name"],
+                "airline_code": carrier["code"],
+                "origin_city": origin_loc["name"],
+                "destination_city": dest_loc["name"],
+                "departure_time": dep_time,
+                "stops": stops,
+                "duration": duration_str,
+                "price": ticket_price,
+                "price_usd": ticket_price,
+                "price_inr": round(ticket_price * 83.0, 2),
+                "currency": "USD",
+                "note": "Estimated price based on distance (Amadeus not configured)",
+            })
+
+        return {"flights": flights}
+
+
+# ── Module-level helper functions ──
+
+def _format_duration(iso_duration: str) -> str:
+    """Convert ISO 8601 duration (e.g., PT5H30M) to readable '5h 30m'."""
+    if not iso_duration:
+        return "N/A"
+    match = re.match(r'PT?(?:(\d+)H)?(?:(\d+)M)?', iso_duration)
+    if match:
+        hours = match.group(1) or "0"
+        minutes = match.group(2) or "0"
+        return f"{int(hours)}h {int(minutes)}m"
+    return iso_duration
+
+
+def _get_airline_name(code: str) -> str:
+    """Map IATA airline codes to names (common ones)."""
+    airlines = {
+        "AA": "American Airlines", "DL": "Delta Air Lines", "UA": "United Airlines",
+        "BA": "British Airways", "LH": "Lufthansa", "AF": "Air France",
+        "KL": "KLM", "EK": "Emirates", "QR": "Qatar Airways",
+        "SQ": "Singapore Airlines", "CX": "Cathay Pacific", "JL": "Japan Airlines",
+        "TK": "Turkish Airlines", "EY": "Etihad Airways", "NH": "ANA",
+        "QF": "Qantas", "AZ": "ITA Airways", "IB": "Iberia",
+        "VS": "Virgin Atlantic", "FR": "Ryanair", "U2": "easyJet",
+        "AK": "AirAsia", "TR": "Scoot", "BI": "Royal Brunei",
+        "CA": "Air China", "MU": "China Eastern", "CZ": "China Southern",
+        "KE": "Korean Air", "OZ": "Asiana Airlines", "VN": "Vietnam Airlines",
+        "TG": "Thai Airways", "MH": "Malaysia Airlines", "GA": "Garuda Indonesia",
+        "AI": "Air India", "6E": "IndiGo", "SG": "SpiceJet",
+        "AC": "Air Canada", "WS": "WestJet", "AM": "Aeromexico",
+        "LA": "LATAM", "CM": "Copa Airlines", "AV": "Avianca",
+    }
+    return airlines.get(code, "")
+
+
 def haversine_distance(lat1, lon1, lat2, lon2) -> float:
     """Calculate the great-circle distance between two points in kilometers."""
-    R = 6371.0  # Earth radius in kilometers
+    R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2 + 
+    a = (math.sin(dlat / 2) ** 2 +
          math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
 
 def get_airline_options(origin_country: str, dest_country: str) -> list[dict]:
     """Return appropriate airline names and codes based on countries."""
@@ -45,8 +299,6 @@ def get_airline_options(origin_country: str, dest_country: str) -> list[dict]:
     global_carriers = [{"name": "Turkish Airlines", "code": "TK"}, {"name": "ANA", "code": "NH"}]
 
     airlines = []
-    
-    # Simple matching based on country keywords
     oc = origin_country.lower()
     dc = dest_country.lower()
 
@@ -59,92 +311,8 @@ def get_airline_options(origin_country: str, dest_country: str) -> list[dict]:
     if any(c in oc or c in dc for c in ["united arab emirates", "qatar", "dubai"]):
         airlines.extend(mideast_airlines)
 
-    # Fallback to general carriers if we don't have enough specific ones
     if len(airlines) < 3:
         airlines.extend(global_carriers)
         airlines.extend(us_airlines)
 
     return airlines[:5]
-
-async def search(origin: str, destination: str, departure_date: str,
-                 return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
-    """Simulate realistic flight search using geocoded distance and real-world airline routes."""
-    try:
-        adults = int(adults)
-        max_results = int(max_results)
-        # Step 1: Geocode origin and destination
-        logger.info(f"Geocoding flight origin: {origin} and destination: {destination}")
-        origin_loc = await geocode(origin)
-        dest_loc = await geocode(destination)
-
-        if "error" in origin_loc:
-            return {"error": f"Failed to geocode origin: {origin_loc['error']}", "flights": []}
-        if "error" in dest_loc:
-            return {"error": f"Failed to geocode destination: {dest_loc['error']}", "flights": []}
-
-        # Calculate distance
-        distance = haversine_distance(
-            origin_loc["latitude"], origin_loc["longitude"],
-            dest_loc["latitude"], dest_loc["longitude"]
-        )
-
-        # Step 2: Calculate duration and price base rates
-        # Speed: ~800 km/h + 40 mins takeoff/landing buffer
-        duration_hours = (distance / 800.0) + 0.6
-        
-        # Flight pricing model: $80 base + $0.08 per km per passenger
-        base_price = 80.0 + (distance * 0.08)
-        
-        # Select carriers
-        carriers = get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
-
-        flights = []
-        # Seed generator with cities to keep options stable per route
-        route_seed = sum(ord(c) for c in origin + destination)
-        rng = random.Random(route_seed)
-
-        for i in range(min(max_results, len(carriers))):
-            carrier = carriers[i]
-            
-            # Apply some carrier-specific pricing and duration variance
-            price_multiplier = rng.uniform(0.85, 1.25)
-            ticket_price = round(base_price * price_multiplier * adults, 2)
-            
-            # Direct flights vs stops depending on distance
-            if distance < 1200:
-                stops = 0
-                flight_dur = duration_hours
-            elif distance < 4500:
-                stops = rng.choice([0, 1])
-                flight_dur = duration_hours + (stops * rng.uniform(1.5, 3.0))
-            else:
-                stops = rng.choice([1, 2])
-                flight_dur = duration_hours + (stops * rng.uniform(2.0, 4.5))
-
-            # Format duration into ISO-like or friendly string e.g. "5h 15m"
-            hours = int(flight_dur)
-            minutes = int((flight_dur - hours) * 60)
-            duration_str = f"{hours}h {minutes}m"
-
-            # Create realistic departure/arrival times
-            dep_hour = rng.randint(6, 21)
-            dep_min = rng.choice([0, 15, 30, 45])
-            dep_time = f"{departure_date}T{dep_hour:02d}:{dep_min:02d}:00"
-            
-            flights.append({
-                "airline": carrier["name"],
-                "airline_code": carrier["code"],
-                "origin_city": origin_loc["name"],
-                "destination_city": dest_loc["name"],
-                "departure_time": dep_time,
-                "stops": stops,
-                "duration": duration_str,
-                "price": ticket_price,
-                "currency": "USD",
-                "note": "Estimated price based on distance (Amadeus deactivated)"
-            })
-
-        return {"flights": flights}
-    except Exception as e:
-        logger.error(f"Flight search error: {e}")
-        return {"error": f"Flight search failed: {str(e)}", "flights": []}

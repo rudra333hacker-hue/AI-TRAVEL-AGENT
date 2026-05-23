@@ -2,95 +2,197 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TripCraft AI — Your Intelligent Travel Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ── Reset & Base ── */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+        ::selection { background: var(--accent-primary); color: #fff; }
+
         :root {
+            /* ── Dark theme (default) ── */
             --bg-primary: #0a0e1a;
             --bg-secondary: #111827;
-            --bg-card: #1a2236;
-            --bg-glass: rgba(26, 34, 54, 0.85);
+            --bg-tertiary: #1a2236;
+            --bg-card: #1e293b;
+            --bg-glass: rgba(15, 23, 42, 0.85);
+            --bg-tool: rgba(99, 102, 241, 0.08);
+            --bg-input: #1e293b;
             --accent-primary: #6366f1;
             --accent-secondary: #8b5cf6;
+            --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
             --accent-glow: rgba(99, 102, 241, 0.3);
+            --accent-glow-strong: rgba(99, 102, 241, 0.5);
             --text-primary: #f1f5f9;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
             --border: rgba(99, 102, 241, 0.15);
+            --border-light: rgba(148, 163, 184, 0.1);
             --success: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.1);
+            --success-border: rgba(16, 185, 129, 0.2);
             --warning: #f59e0b;
             --error: #ef4444;
-            --tool-bg: rgba(99, 102, 241, 0.08);
+            --error-bg: rgba(239, 68, 68, 0.08);
+            --error-border: rgba(239, 68, 68, 0.2);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.4);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --radius-xl: 24px;
+            --transition-fast: 0.15s ease;
+            --transition-base: 0.25s ease;
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
         }
 
+        /* ── Light theme ── */
+        [data-theme="light"] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #f1f5f9;
+            --bg-tertiary: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-glass: rgba(255, 255, 255, 0.9);
+            --bg-tool: rgba(99, 102, 241, 0.06);
+            --bg-input: #ffffff;
+            --accent-gradient: linear-gradient(135deg, #4f46e5, #7c3aed);
+            --accent-glow: rgba(99, 102, 241, 0.2);
+            --accent-glow-strong: rgba(99, 102, 241, 0.35);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border: rgba(99, 102, 241, 0.12);
+            --border-light: rgba(148, 163, 184, 0.15);
+            --success-bg: rgba(16, 185, 129, 0.08);
+            --success-border: rgba(16, 185, 129, 0.15);
+            --error-bg: rgba(239, 68, 68, 0.06);
+            --error-border: rgba(239, 68, 68, 0.15);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+        }
+
+        html { color-scheme: dark; }
+        [data-theme="light"] { color-scheme: light; }
+
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
             overflow: hidden;
+            transition: background var(--transition-slow), color var(--transition-slow);
         }
 
-        /* Animated background */
-        body::before {
-            content: '';
+        /* ── Animated background ── */
+        .bg-effects {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: 
-                radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
             z-index: 0;
-            animation: bgPulse 8s ease-in-out infinite alternate;
+            pointer-events: none;
+            overflow: hidden;
         }
 
-        @keyframes bgPulse {
-            0% { opacity: 0.6; }
-            100% { opacity: 1; }
+        .bg-effects .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            transition: opacity var(--transition-slow);
         }
 
+        [data-theme="light"] .bg-effects .orb { opacity: 0.2; }
+
+        .bg-effects .orb:nth-child(1) {
+            width: 500px; height: 500px;
+            top: -10%; left: -5%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent);
+            animation: orbFloat 12s ease-in-out infinite alternate;
+        }
+
+        .bg-effects .orb:nth-child(2) {
+            width: 400px; height: 400px;
+            bottom: -5%; right: -5%;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.12), transparent);
+            animation: orbFloat 10s ease-in-out infinite alternate-reverse;
+        }
+
+        .bg-effects .orb:nth-child(3) {
+            width: 300px; height: 300px;
+            top: 40%; left: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08), transparent);
+            animation: orbFloat 14s ease-in-out infinite alternate;
+        }
+
+        @keyframes orbFloat {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, -30px) scale(1.1); }
+        }
+
+        /* ── App Container ── */
         .app-container {
             position: relative;
             z-index: 1;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            max-width: 900px;
+            max-width: 960px;
             margin: 0 auto;
+            transition: background var(--transition-slow);
         }
 
-        /* Header */
+        /* ── Header ── */
         .header {
-            padding: 20px 24px 16px;
+            padding: 16px 24px 12px;
             text-align: center;
             border-bottom: 1px solid var(--border);
-            backdrop-filter: blur(20px);
-            background: rgba(10, 14, 26, 0.8);
+            backdrop-filter: blur(24px) saturate(1.4);
+            -webkit-backdrop-filter: blur(24px) saturate(1.4);
+            background: var(--bg-glass);
+            position: relative;
+            z-index: 10;
+            transition: background var(--transition-slow), border-color var(--transition-slow);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            position: relative;
         }
 
         .header-logo {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 6px;
+            gap: 10px;
+            text-decoration: none;
         }
 
         .header-logo .icon {
-            font-size: 32px;
-            filter: drop-shadow(0 0 12px var(--accent-glow));
+            font-size: 28px;
+            line-height: 1;
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+            transition: transform var(--transition-base);
+        }
+
+        .header-logo:hover .icon {
+            transform: rotate(-10deg) scale(1.05);
         }
 
         .header h1 {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 800;
-            background: linear-gradient(135deg, #6366f1, #a78bfa, #6366f1);
+            letter-spacing: -0.02em;
+            background: var(--accent-gradient);
             background-size: 200% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
             animation: shimmer 3s linear infinite;
         }
 
@@ -99,98 +201,161 @@
             100% { background-position: 200% center; }
         }
 
-        .header p {
-            font-size: 13px;
+        .header-sub {
+            font-size: 12px;
             color: var(--text-muted);
             font-weight: 400;
+            margin-top: 2px;
+            transition: color var(--transition-slow);
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 8px;
         }
 
         .status-badge {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            margin-top: 8px;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 11px;
             font-weight: 500;
-            background: rgba(16, 185, 129, 0.1);
+            background: var(--success-bg);
             color: var(--success);
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            border: 1px solid var(--success-border);
+            transition: all var(--transition-slow);
         }
 
         .status-dot {
             width: 6px; height: 6px;
             border-radius: 50%;
-            background: var(--success);
+            background: currentColor;
             animation: pulse 2s ease-in-out infinite;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
             50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
         }
 
-        /* Chat Area */
+        /* ── Theme Toggle ── */
+        .theme-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-tool);
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-base);
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: rgba(99, 102, 241, 0.12);
+        }
+
+        .theme-toggle .icon-sun,
+        .theme-toggle .icon-moon {
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity var(--transition-base);
+        }
+
+        [data-theme="dark"] .theme-toggle .icon-sun { display: inline; }
+        [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+        [data-theme="light"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: inline; }
+
+        .theme-toggle:active {
+            transform: translateY(-50%) scale(0.9);
+        }
+
+        /* ── Chat Area ── */
         .chat-area {
             flex: 1;
             overflow-y: auto;
-            padding: 20px 16px;
+            overflow-x: hidden;
+            padding: 20px 16px 12px;
             scroll-behavior: smooth;
         }
 
-        .chat-area::-webkit-scrollbar { width: 4px; }
+        .chat-area::-webkit-scrollbar { width: 5px; }
         .chat-area::-webkit-scrollbar-track { background: transparent; }
-        .chat-area::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 8px;
+            opacity: 0.5;
+        }
+        .chat-area::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 
-        /* Messages */
-        .message {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            animation: fadeInUp 0.3s ease-out;
+        @media (hover: none) {
+            .chat-area::-webkit-scrollbar { width: 3px; }
         }
 
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(12px); }
+        /* ── Messages ── */
+        .message {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+            animation: messageSlide 0.3s ease-out;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .message.user { flex-direction: row-reverse; }
 
         .avatar {
-            width: 36px; height: 36px;
-            border-radius: 12px;
+            width: 34px; height: 34px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 16px;
             flex-shrink: 0;
+            position: relative;
         }
 
         .avatar.agent {
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            box-shadow: 0 4px 15px var(--accent-glow);
+            background: var(--accent-gradient);
+            box-shadow: 0 2px 10px var(--accent-glow);
         }
 
         .avatar.user {
             background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+            box-shadow: 0 2px 10px rgba(14, 165, 233, 0.25);
         }
 
         .bubble {
-            max-width: 75%;
-            padding: 14px 18px;
-            border-radius: 18px;
+            max-width: 78%;
+            padding: 12px 16px;
+            border-radius: var(--radius-lg);
             font-size: 14px;
-            line-height: 1.65;
+            line-height: 1.7;
             letter-spacing: 0.01em;
+            transition: background var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
         }
 
         .message.user .bubble {
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            color: white;
+            background: var(--accent-gradient);
+            color: #fff;
             border-bottom-right-radius: 6px;
+            box-shadow: 0 2px 8px var(--accent-glow);
         }
 
         .message.agent .bubble {
@@ -198,75 +363,95 @@
             border: 1px solid var(--border);
             border-bottom-left-radius: 6px;
             color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
         }
 
-        .message.agent .bubble strong { color: #a78bfa; }
+        .message.agent .bubble strong, .message.agent .bubble em { color: var(--accent-secondary); }
 
-        /* Tool call cards */
+        /* ── Tool call cards ── */
         .tool-event {
-            margin-bottom: 12px;
-            animation: fadeInUp 0.25s ease-out;
+            margin-bottom: 8px;
+            animation: messageSlide 0.25s ease-out;
         }
 
         .tool-card {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 16px;
-            border-radius: 12px;
-            background: var(--tool-bg);
+            padding: 9px 14px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tool);
             border: 1px solid var(--border);
             font-size: 13px;
-            margin-left: 48px;
+            margin-left: 44px;
+            transition: all var(--transition-slow);
         }
 
         .tool-card .tool-icon {
-            font-size: 18px;
+            font-size: 16px;
             flex-shrink: 0;
+            line-height: 1;
         }
+
+        .tool-card .tool-info { min-width: 0; }
 
         .tool-card .tool-name {
             font-weight: 600;
             color: var(--accent-secondary);
+            font-size: 12px;
+            transition: color var(--transition-slow);
         }
 
         .tool-card .tool-detail {
             color: var(--text-secondary);
-            font-size: 12px;
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+            transition: color var(--transition-slow);
         }
 
         .tool-card.result {
-            border-color: rgba(16, 185, 129, 0.2);
-            background: rgba(16, 185, 129, 0.06);
+            border-color: var(--success-border);
+            background: var(--success-bg);
         }
 
         .tool-card.result .tool-name { color: var(--success); }
 
         .tool-card.error {
-            border-color: rgba(239, 68, 68, 0.2);
-            background: rgba(239, 68, 68, 0.06);
+            border-color: var(--error-border);
+            background: var(--error-bg);
         }
 
-        /* Thinking indicator */
+        .tool-card.error .tool-name { color: var(--error); }
+
+        /* ── Thinking indicator ── */
         .thinking {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 16px;
-            margin-left: 48px;
-            margin-bottom: 12px;
-            border-radius: 12px;
-            background: var(--tool-bg);
+            padding: 9px 14px;
+            margin-left: 44px;
+            margin-bottom: 8px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tool);
             border: 1px solid var(--border);
             font-size: 13px;
             color: var(--text-secondary);
-            animation: fadeInUp 0.3s ease-out;
+            animation: messageSlide 0.3s ease-out;
+            transition: all var(--transition-slow);
+        }
+
+        .thinking-dots {
+            display: flex;
+            align-items: center;
+            gap: 3px;
         }
 
         .thinking-dots span {
             display: inline-block;
-            width: 6px; height: 6px;
-            margin: 0 2px;
+            width: 5px; height: 5px;
             border-radius: 50%;
             background: var(--accent-primary);
             animation: dotBounce 1.4s infinite both;
@@ -280,16 +465,66 @@
             40% { transform: scale(1); opacity: 1; }
         }
 
-        /* Welcome */
-        .welcome {
-            text-align: center;
-            padding: 60px 24px 40px;
-            animation: fadeInUp 0.5s ease-out;
+        .thinking-label {
+            transition: color var(--transition-slow);
         }
 
-        .welcome .big-icon { font-size: 64px; margin-bottom: 16px; filter: drop-shadow(0 0 30px var(--accent-glow)); }
-        .welcome h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); }
-        .welcome p { font-size: 14px; color: var(--text-secondary); max-width: 420px; margin: 0 auto 28px; line-height: 1.6; }
+        /* ── Welcome Section ── */
+        .welcome {
+            text-align: center;
+            padding: 40px 20px 32px;
+            animation: messageSlide 0.5s ease-out;
+        }
+
+        .welcome-icon-wrap {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+
+        .welcome-icon-wrap .big-icon {
+            font-size: 56px;
+            display: block;
+            line-height: 1;
+            filter: drop-shadow(0 0 20px var(--accent-glow));
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .welcome-icon-wrap::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 4px;
+            background: var(--accent-gradient);
+            border-radius: 4px;
+            opacity: 0.5;
+        }
+
+        .welcome h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+            transition: color var(--transition-slow);
+        }
+
+        .welcome p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            max-width: 440px;
+            margin: 0 auto 24px;
+            line-height: 1.7;
+            transition: color var(--transition-slow);
+        }
 
         .suggestions {
             display: flex;
@@ -299,30 +534,38 @@
         }
 
         .suggestion {
-            padding: 10px 16px;
-            border-radius: 12px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
             background: var(--bg-card);
             border: 1px solid var(--border);
             color: var(--text-secondary);
             font-size: 13px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .suggestion:hover {
             border-color: var(--accent-primary);
             color: var(--text-primary);
-            background: var(--tool-bg);
+            background: var(--bg-tool);
             transform: translateY(-2px);
             box-shadow: 0 4px 12px var(--accent-glow);
         }
 
-        /* Input Area */
+        .suggestion:active {
+            transform: translateY(0) scale(0.97);
+        }
+
+        /* ── Input Area ── */
         .input-area {
-            padding: 16px;
+            padding: 14px 16px max(14px, env(safe-area-inset-bottom, 14px));
             border-top: 1px solid var(--border);
-            backdrop-filter: blur(20px);
-            background: rgba(10, 14, 26, 0.9);
+            backdrop-filter: blur(24px) saturate(1.4);
+            -webkit-backdrop-filter: blur(24px) saturate(1.4);
+            background: var(--bg-glass);
+            transition: background var(--transition-slow), border-color var(--transition-slow);
         }
 
         .input-wrapper {
@@ -334,18 +577,19 @@
 
         .input-wrapper textarea {
             flex: 1;
-            padding: 14px 18px;
-            border-radius: 16px;
+            padding: 12px 16px;
+            border-radius: 14px;
             border: 1px solid var(--border);
-            background: var(--bg-card);
+            background: var(--bg-input);
             color: var(--text-primary);
             font-family: 'Inter', sans-serif;
             font-size: 14px;
             resize: none;
-            min-height: 48px;
+            min-height: 44px;
             max-height: 120px;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-slow), color var(--transition-slow);
+            line-height: 1.5;
         }
 
         .input-wrapper textarea:focus {
@@ -353,74 +597,248 @@
             box-shadow: 0 0 0 3px var(--accent-glow);
         }
 
-        .input-wrapper textarea::placeholder { color: var(--text-muted); }
+        .input-wrapper textarea::placeholder {
+            color: var(--text-muted);
+            transition: color var(--transition-slow);
+        }
 
         .send-btn {
-            width: 48px; height: 48px;
+            width: 44px;
+            height: 44px;
             border-radius: 14px;
             border: none;
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            color: white;
-            font-size: 20px;
+            background: var(--accent-gradient);
+            color: #fff;
+            font-size: 18px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
             flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
         }
+
+        .send-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.1);
+            opacity: 0;
+            transition: opacity var(--transition-base);
+        }
+
+        .send-btn:hover:not(:disabled)::after { opacity: 1; }
 
         .send-btn:hover:not(:disabled) {
             transform: scale(1.05);
-            box-shadow: 0 4px 20px var(--accent-glow);
+            box-shadow: 0 4px 16px var(--accent-glow-strong);
+        }
+
+        .send-btn:active:not(:disabled) {
+            transform: scale(0.95);
         }
 
         .send-btn:disabled {
-            opacity: 0.4;
+            opacity: 0.35;
             cursor: not-allowed;
         }
 
-        /* Markdown rendering */
-        .bubble h1, .bubble h2, .bubble h3 { margin: 14px 0 6px; color: #a78bfa; }
-        .bubble h3 { font-size: 15px; }
-        .bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
-        .bubble li { margin: 4px 0; }
-        .bubble code { background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        .bubble hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+        .send-btn .send-icon {
+            position: relative;
+            z-index: 1;
+            transition: transform var(--transition-base);
+        }
 
-        @media (max-width: 600px) {
-            .bubble { max-width: 88%; }
-            .suggestions { flex-direction: column; }
-            .header h1 { font-size: 20px; }
+        .send-btn:hover:not(:disabled) .send-icon {
+            transform: translateX(2px);
+        }
+
+        /* ── Markdown in bubbles ── */
+        .bubble h1, .bubble h2, .bubble h3 {
+            margin: 12px 0 6px;
+            color: var(--accent-secondary);
+            font-weight: 700;
+            line-height: 1.4;
+            transition: color var(--transition-slow);
+        }
+        .bubble h1 { font-size: 17px; }
+        .bubble h2 { font-size: 16px; }
+        .bubble h3 { font-size: 15px; }
+        .bubble p { margin: 6px 0; }
+        .bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
+        .bubble li { margin: 3px 0; }
+        .bubble code {
+            background: var(--bg-tool);
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            border: 1px solid var(--border);
+            transition: all var(--transition-slow);
+        }
+        .bubble pre {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            margin: 8px 0;
+        }
+        .bubble pre code {
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        .bubble hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 12px 0;
+            transition: border-color var(--transition-slow);
+        }
+        .bubble blockquote {
+            border-left: 3px solid var(--accent-primary);
+            padding: 6px 12px;
+            margin: 8px 0;
+            color: var(--text-secondary);
+            background: var(--bg-tool);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            transition: all var(--transition-slow);
+        }
+        .bubble table {
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-size: 13px;
+            width: 100%;
+        }
+        .bubble th, .bubble td {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+        .bubble th {
+            background: var(--bg-tool);
+            font-weight: 600;
+        }
+
+        /* ── Responsive ── */
+
+        /* Tablet */
+        @media (max-width: 768px) {
+            .header { padding: 12px 16px 10px; }
+            .header h1 { font-size: 19px; }
+            .header-sub { font-size: 11px; }
+            .bubble { max-width: 85%; }
+            .welcome { padding: 32px 16px 24px; }
+            .welcome-icon-wrap .big-icon { font-size: 48px; }
+            .welcome h2 { font-size: 19px; }
+            .suggestions { gap: 6px; }
+            .suggestion { padding: 8px 14px; font-size: 12px; }
+            .chat-area { padding: 16px 12px 8px; }
+            .input-area { padding: 10px 12px; }
+        }
+
+        /* Mobile */
+        @media (max-width: 480px) {
+            .header { padding: 10px 12px 8px; }
+            .header h1 { font-size: 17px; }
+            .header-top { gap: 8px; }
+            .header-logo .icon { font-size: 22px; }
+            .header-sub { display: none; }
+            .header-meta { margin-top: 6px; }
+            .status-badge { font-size: 10px; padding: 3px 10px; }
+
+            .theme-toggle {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
+            .avatar { width: 30px; height: 30px; font-size: 14px; }
+            .bubble { max-width: 92%; font-size: 13px; padding: 10px 14px; }
+            .message { gap: 8px; margin-bottom: 14px; }
+
+            .tool-card { margin-left: 38px; padding: 8px 12px; font-size: 12px; }
+            .thinking { margin-left: 38px; padding: 8px 12px; font-size: 12px; }
+
+            .chat-area { padding: 12px 10px 6px; }
+            .input-area { padding: 8px 10px; }
+
+            .input-wrapper textarea {
+                padding: 10px 14px;
+                font-size: 16px; /* Prevent iOS zoom */
+                min-height: 44px;
+            }
+            .send-btn { width: 44px; height: 44px; }
+
+            .welcome { padding: 24px 12px 20px; }
+            .welcome-icon-wrap .big-icon { font-size: 40px; }
+            .welcome h2 { font-size: 17px; }
+            .welcome p { font-size: 13px; margin-bottom: 18px; }
+            .suggestions { flex-direction: column; align-items: stretch; }
+            .suggestion { text-align: center; }
+        }
+
+        /* Small mobile */
+        @media (max-width: 360px) {
+            .header h1 { font-size: 15px; }
+            .header-logo .icon { font-size: 20px; }
+            .bubble { max-width: 95%; font-size: 12px; }
+        }
+
+        /* Prevent iOS zoom on input */
+        @supports (-webkit-touch-callout: none) {
+            .input-wrapper textarea { font-size: 16px !important; }
         }
     </style>
 </head>
 <body>
+    <!-- Background effects -->
+    <div class="bg-effects">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+
+    <!-- App -->
     <div class="app-container">
         <!-- Header -->
         <div class="header">
-            <div class="header-logo">
-                <span class="icon">✈️</span>
-                <h1>TripCraft AI</h1>
+            <div class="header-top">
+                <div class="header-logo">
+                    <span class="icon">✈️</span>
+                    <h1>TripCraft AI</h1>
+                </div>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <span class="icon-sun">☀️</span>
+                    <span class="icon-moon">🌙</span>
+                </button>
             </div>
-            <p>Your intelligent travel planning agent — powered by NVIDIA NIM</p>
-            <div class="status-badge" id="statusBadge">
-                <span class="status-dot"></span>
-                <span id="statusText">Connecting...</span>
+            <div class="header-sub">Your intelligent travel planning agent — powered by NVIDIA NIM</div>
+            <div class="header-meta">
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
             </div>
         </div>
 
         <!-- Chat -->
-        <div class="chat-area" id="chatArea">
+        <div class="chat-area" id="chatArea" role="log" aria-live="polite" aria-label="Chat messages">
             <div class="welcome" id="welcome">
-                <div class="big-icon">🌍</div>
-                <h2>Where do you want to go?</h2>
-                <p>I'm your AI travel agent. Tell me your dream trip — budget, dates, vibes, dietary needs — and I'll plan everything with real-time data.</p>
+                <div class="welcome-icon-wrap">
+                    <div class="big-icon">✈️</div>
+                </div>
+                <h2>TripCraft AI ✈️</h2>
+                <p>Your personal expert trip planner — tell me your budget, vibe, or group size and I'll build your complete trip with itinerary, exotic food guide, hidden gems, packing list, budget breakdown, and a WhatsApp-ready summary to share with your crew.</p>
                 <div class="suggestions">
-                    <div class="suggestion" onclick="useSuggestion(this)">🏖️ Chill beach trip for 2, budget $2000</div>
-                    <div class="suggestion" onclick="useSuggestion(this)">🏔️ Adventure trip, surprise me! $1500</div>
-                    <div class="suggestion" onclick="useSuggestion(this)">🇮🇹 5 days in Italy, vegetarian, couple</div>
-                    <div class="suggestion" onclick="useSuggestion(this)">🎌 Tokyo hidden gems, solo, $3000</div>
+                    <div class="suggestion" data-message="I want to plan a trip but I'm not sure where to go. Help me figure out the destination and plan everything!" onclick="useSuggestion(this)">🗺️ Plan a trip for me</div>
+                    <div class="suggestion" data-message="We are a group of friends and want a fun trip under a tight budget. Help us plan!" onclick="useSuggestion(this)">🎯 Budget group trip</div>
+                    <div class="suggestion" data-message="I want to go somewhere cool and refreshing. Suggest a place and plan the whole trip!" onclick="useSuggestion(this)">🍃 Cool weather getaway</div>
+                    <div class="suggestion" data-message="I want a trip that's all about exotic food and fun adventures. Where should I go and what's the plan?" onclick="useSuggestion(this)">🍽️ Food & adventure trip</div>
+                    <div class="suggestion" data-message="Plan a 2-3 day weekend getaway for me. Looking for something different and exciting!" onclick="useSuggestion(this)">📅 Weekend escape plan</div>
+                    <div class="suggestion" data-message="Give me a complete cost breakdown for a trip including travel, stay, food, and activities." onclick="useSuggestion(this)">📊 Full trip cost estimate</div>
                 </div>
             </div>
         </div>
@@ -430,12 +848,17 @@
             <div class="input-wrapper">
                 <textarea id="userInput" placeholder="Tell me about your dream trip..." rows="1"
                     onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
-                <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()" aria-label="Send">
+                    <span class="send-icon">➤</span>
+                </button>
             </div>
         </div>
     </div>
 
     <script>
+        'use strict';
+
+        // ── State ──
         let sessionId = null;
         let isStreaming = false;
         const API_BASE = window.location.origin;
@@ -446,38 +869,77 @@
             'search_transportation': '🚗',
             'search_hotels': '🏨',
             'search_places': '📍',
-            'get_weather_forecast': '🌤️'
+            'get_weather_forecast': '🌤️',
+            'search_web': '🔍',
         };
 
-        // Auto-resize textarea
+        // ── Theme ──
+        const themeToggle = document.getElementById('themeToggle');
+        const htmlEl = document.documentElement;
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem('tripcraft-theme');
+            if (stored) return stored;
+            return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+
+        function setTheme(theme) {
+            htmlEl.setAttribute('data-theme', theme);
+            localStorage.setItem('tripcraft-theme', theme);
+        }
+
+        setTheme(getPreferredTheme());
+
+        themeToggle.addEventListener('click', () => {
+            const current = htmlEl.getAttribute('data-theme');
+            setTheme(current === 'dark' ? 'light' : 'dark');
+        });
+
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('tripcraft-theme')) {
+                setTheme(e.matches ? 'light' : 'dark');
+            }
+        });
+
+        // ── Textarea autosize ──
         const textarea = document.getElementById('userInput');
         textarea.addEventListener('input', () => {
             textarea.style.height = 'auto';
             textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
         });
 
-        // Initialize session
+        // ── Session ──
         async function initSession() {
             try {
                 const resp = await fetch(`${API_BASE}/api/sessions`, { method: 'POST' });
                 const data = await resp.json();
                 sessionId = data.session_id;
-                document.getElementById('statusText').textContent = `Agent Online • ${data.tools_available.length} tools`;
-                document.getElementById('statusBadge').style.color = '#10b981';
+                const statusText = document.getElementById('statusText');
+                statusText.textContent = `Online \u2022 ${data.tools_available.length} tools`;
+                const badge = document.getElementById('statusBadge');
+                badge.style.color = '';
+                badge.style.borderColor = '';
+                badge.style.background = '';
             } catch (e) {
                 document.getElementById('statusText').textContent = 'Connection failed';
-                document.getElementById('statusBadge').style.color = '#ef4444';
+                const badge = document.getElementById('statusBadge');
+                badge.style.color = '#ef4444';
+                badge.style.borderColor = 'rgba(239,68,68,0.3)';
+                badge.style.background = 'rgba(239,68,68,0.1)';
             }
         }
 
+        // ── DOM helpers (global for inline onclick handlers) ──
         function useSuggestion(el) {
-            document.getElementById('userInput').value = el.textContent.replace(/^..\s/, '');
+            document.getElementById('userInput').value = el.getAttribute('data-message');
             sendMessage();
         }
 
         function scrollToBottom() {
             const area = document.getElementById('chatArea');
-            area.scrollTop = area.scrollHeight;
+            requestAnimationFrame(() => {
+                area.scrollTop = area.scrollHeight;
+            });
         }
 
         function addMessage(role, html) {
@@ -487,7 +949,7 @@
             const chat = document.getElementById('chatArea');
             const div = document.createElement('div');
             div.className = `message ${role}`;
-            const emoji = role === 'user' ? '👤' : '🤖';
+            const emoji = role === 'user' ? '\u{1F464}' : '\u{1F916}';
             const avatarClass = role === 'user' ? 'user' : 'agent';
             div.innerHTML = `
                 <div class="avatar ${avatarClass}">${emoji}</div>
@@ -502,14 +964,14 @@
             const chat = document.getElementById('chatArea');
             const div = document.createElement('div');
             div.className = 'tool-event';
-            const icon = TOOL_ICONS[name] || '🔧';
+            const icon = TOOL_ICONS[name] || '\u{1F527}';
             const cardClass = type === 'result' ? 'result' : (type === 'error' ? 'error' : '');
-            const label = type === 'call' ? 'Calling' : (type === 'result' ? '✓ Result' : '✗ Error');
+            const label = type === 'call' ? 'Calling' : (type === 'result' ? '\u2713 Result' : '\u2717 Error');
             div.innerHTML = `
                 <div class="tool-card ${cardClass}">
                     <span class="tool-icon">${icon}</span>
-                    <div>
-                        <span class="tool-name">${label}: ${name}</span>
+                    <div class="tool-info">
+                        <div class="tool-name">${label}: ${name}</div>
                         <div class="tool-detail">${detail}</div>
                     </div>
                 </div>
@@ -520,12 +982,15 @@
 
         function addThinking(text) {
             const chat = document.getElementById('chatArea');
+            const existing = document.getElementById('thinkingIndicator');
+            if (existing) existing.remove();
+
             const div = document.createElement('div');
             div.className = 'thinking';
             div.id = 'thinkingIndicator';
             div.innerHTML = `
                 <div class="thinking-dots"><span></span><span></span><span></span></div>
-                <span>${text}</span>
+                <span class="thinking-label">${text}</span>
             `;
             chat.appendChild(div);
             scrollToBottom();
@@ -536,21 +1001,65 @@
             if (el) el.remove();
         }
 
+        // ── Markdown ──
         function formatMarkdown(text) {
-            return text
-                .replace(/### (.*)/g, '<h3>$1</h3>')
-                .replace(/## (.*)/g, '<h2>$1</h2>')
-                .replace(/# (.*)/g, '<h1>$1</h1>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/`(.*?)`/g, '<code>$1</code>')
-                .replace(/^- (.*)/gm, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-                .replace(/^\d+\. (.*)/gm, '<li>$1</li>')
-                .replace(/\n{2,}/g, '<br><br>')
-                .replace(/\n/g, '<br>');
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            // Code blocks (before inline code)
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+            // Blockquotes
+            html = html.replace(/^&gt;\s?(.*)/gm, '<blockquote>$1</blockquote>');
+
+            // Headings
+            html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
+            html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+
+            // Bold & italic
+            html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Horizontal rules
+            html = html.replace(/^---$/gm, '<hr>');
+
+            // Lists: collect <li> runs and wrap in <ul> or <ol>
+            // First, convert list markers to <li>
+            html = html.replace(/^- (.*)/gm, '<li class="ul-item">$1</li>');
+            html = html.replace(/^\d+\. (.*)/gm, '<li class="ol-item">$1</li>');
+
+            // Wrap consecutive ul-items in <ul>
+            html = html.replace(/(<li class="ul-item">[\s\S]*?<\/li>(?:\s*<li class="ul-item">[\s\S]*?<\/li>)*)/g,
+                '<ul>$1</ul>');
+            // Wrap consecutive ol-items in <ol>
+            html = html.replace(/(<li class="ol-item">[\s\S]*?<\/li>(?:\s*<li class="ol-item">[\s\S]*?<\/li>)*)/g,
+                '<ol>$1</ol>');
+
+            // Clean up temp classes
+            html = html.replace(/ class="ul-item"/g, '').replace(/ class="ol-item"/g, '');
+
+            // Paragraph breaks (double newlines)
+            html = html.replace(/\n{2,}/g, '</p><p>');
+            // Single newlines as <br>
+            html = html.replace(/\n/g, '<br>');
+
+            // Wrap in <p> if not starting with a block element
+            if (!/^\s*<(?:h[1-4]|ul|ol|pre|blockquote|hr|p)/i.test(html)) {
+                html = '<p>' + html + '</p>';
+            }
+
+            return html;
         }
 
+        // ── SSE Streaming ──
         async function sendMessage() {
             const input = document.getElementById('userInput');
             const msg = input.value.trim();
@@ -590,14 +1099,18 @@
                         if (line.startsWith('event: ')) {
                             eventType = line.slice(7).trim();
                         } else if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-                            handleEvent(eventType, data);
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                handleEvent(eventType, data);
+                            } catch (parseErr) {
+                                // Skip malformed JSON events
+                            }
                         }
                     }
                 }
             } catch (err) {
                 removeThinking();
-                addMessage('agent', `<span style="color:#ef4444">Connection error: ${err.message}</span>`);
+                addMessage('agent', `<span style="color:var(--error)">Connection error: ${err.message}</span>`);
             }
 
             isStreaming = false;
@@ -608,26 +1121,25 @@
         function handleEvent(type, data) {
             switch (type) {
                 case 'thinking':
-                    // Already showing thinking indicator
                     break;
                 case 'tool_call':
                     removeThinking();
-                    const argsStr = Object.entries(data.args).map(([k,v]) => `${k}="${v}"`).join(', ');
+                    const argsStr = Object.entries(data.args || {}).map(([k,v]) => `${k}="${v}"`).join(', ');
                     addToolEvent('call', data.name, argsStr);
                     addThinking(`Running ${data.name}...`);
                     break;
                 case 'tool_result':
                     removeThinking();
-                    addToolEvent('result', data.name, data.summary);
+                    addToolEvent('result', data.name, data.summary || 'Done');
                     addThinking('Analyzing results...');
                     break;
                 case 'content':
                     removeThinking();
-                    addMessage('agent', formatMarkdown(data.text));
+                    addMessage('agent', formatMarkdown(data.text || ''));
                     break;
                 case 'error':
                     removeThinking();
-                    addToolEvent('error', 'error', data.message);
+                    addToolEvent('error', 'Error', data.message || 'Unknown error');
                     break;
                 case 'done':
                     removeThinking();
@@ -635,7 +1147,7 @@
             }
         }
 
-        // Boot
+        // ── Boot ──
         initSession();
     </script>
 </body>
