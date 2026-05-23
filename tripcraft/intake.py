@@ -306,6 +306,12 @@ Before I start crafting your personalized itinerary, I need just a few quick det
 ---
 
 💡 **Pro tip:** The more you tell me, the more personalized your plan! Feel free to dump everything in one message — I'll sort it all out. 😎
+
+[📍 Starting from Mumbai](followup:I'll be starting from Mumbai. Help me plan a trip!)
+[🌍 Want to go to Goa](followup:I want to go to Goa. Plan the trip!)
+[📅 June for 4 days](followup:I'm traveling in June for 4 days)
+[👥 4 friends](followup:We are a group of 4 friends)
+[💰 Budget ₹15,000](followup:My budget is ₹15,000 per person)
 """
 
 
@@ -356,6 +362,22 @@ def _build_partial_question(missing: list[str], state: Tier1State) -> str:
         lines.append("---")
         lines.append("*Got so far:* " + " · ".join(known))
 
+    lines.append("")
+    lines.append("---")
+
+    # Append follow-up chips for missing fields so users can tap-to-answer
+    for field in missing:
+        if field == "origin":
+            lines.append("[📍 Starting from Mumbai](followup:I'm starting from Mumbai)")
+        elif field == "destination":
+            lines.append("[🌍 Going to Goa](followup:I want to go to Goa)")
+        elif field == "dates":
+            lines.append("[📅 June 4 days](followup:I'm planning to travel in June for 4 days)")
+        elif field == "group_size":
+            lines.append("[👥 4 friends](followup:We are a group of 4 friends)")
+        elif field == "budget":
+            lines.append("[💰 ₹15,000 pp](followup:My budget is ₹15,000 per person)")
+
     return "\n".join(lines)
 
 
@@ -383,21 +405,22 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
     if state.is_complete:
         return False, None
 
-    # First message and no data: always show full card
+    # First message: intercept if 3+ fields missing
+    # Catches vague inputs like "plan a trip" or "I want to go to Goa" (missing origin, dates, group, budget)
     if n_user == 1:
-        # Check if the single message is extremely detailed (might have everything)
-        # Only intercept if multiple mandatory fields are missing
-        if len(state.missing_fields) >= 2:
+        if len(state.missing_fields) >= 3:
             is_first = True
             question = build_tier1_question(state, is_first)
             return True, question
+        # Partial data — let the smart LLM handle the remaining questions
+        return False, None
 
-    # Subsequent messages: intercept only if critical fields are still missing
-    # (origin + one more, or destination + dates)
+    # Subsequent messages: intercept if 2+ critical fields still missing
+    # Critical = origin, destination, budget, dates — without these the LLM can't plan
     missing = state.missing_fields
-    critical_missing = [f for f in missing if f in ("origin", "budget")]
-    if len(critical_missing) >= 1 and len(missing) >= 2:
-        question = build_tier1_question(state, is_first_message=(n_user == 1))
+    critical_missing = [f for f in missing if f in ("origin", "destination", "budget", "dates")]
+    if len(critical_missing) >= 2:
+        question = build_tier1_question(state, is_first_message=False)
         return True, question
 
     return False, None

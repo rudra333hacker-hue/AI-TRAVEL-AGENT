@@ -43,6 +43,7 @@ class TripCraftAgent:
             return
 
         # ── PHASE 2: Normal LLM ReAct loop ────────────────────────────────────
+        total_tools_called = 0
         for round_num in range(1, self.MAX_ROUNDS + 1):
             try:
                 tools_def = self.tools.definitions if self.tools.definitions else None
@@ -55,7 +56,7 @@ class TripCraftAgent:
                 yield StreamEvent("done", {
                     "session_id": self.session.id,
                     "rounds": round_num,
-                    "tools_called": round_num - 1,
+                    "tools_called": total_tools_called,
                 })
                 return
 
@@ -66,62 +67,67 @@ class TripCraftAgent:
 
             # 4. Final text response (no tool calls or model decided to end)
             if not msg.tool_calls:
-                yield StreamEvent("content", {"text": msg.content or ""})
+                text = msg.content or ""
+                # Backend fallback: if LLM didn't generate follow-up chips, append them
+                if "(followup:" not in text:
+                    text = _append_fallback_chips(text, self.session.messages)
+                yield StreamEvent("content", {"text": text})
                 yield StreamEvent("done", {
                     "session_id": self.session.id,
                     "rounds": round_num,
-                    "tools_called": round_num - 1,
+                    "tools_called": total_tools_called,
                 })
                 return
 
-            # 5. Process tool calls
-            tc = msg.tool_calls[0]
-            name = tc.function.name
-            try:
-                args = json.loads(tc.function.arguments)
-            except Exception as parse_err:
-                args = {}
-                yield StreamEvent("error", {"message": f"Failed to parse tool args for '{name}': {parse_err}"})
+            # 5. Process ALL tool calls (not just the first)
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                total_tools_called += 1
+                try:
+                    args = json.loads(tc.function.arguments)
+                except Exception as parse_err:
+                    args = {}
+                    yield StreamEvent("error", {"message": f"Failed to parse tool args for '{name}': {parse_err}"})
+                    continue
 
-            yield StreamEvent("tool_call", {
-                "name": name, 
-                "args": args, 
-                "step": round_num
-            })
+                yield StreamEvent("tool_call", {
+                    "name": name, 
+                    "args": args, 
+                    "step": round_num
+                })
 
-            # Validate arguments
-            validation_error = _validate_args(name, args, self.session.messages)
-            if validation_error:
-                result = {"error": validation_error}
-            else:
-                result = await self.tools.execute(name, args)
+                # Validate arguments
+                validation_error = _validate_args(name, args, self.session.messages)
+                if validation_error:
+                    result = {"error": validation_error}
+                else:
+                    result = await self.tools.execute(name, args)
 
-            yield StreamEvent("tool_result", {
-                "name": name,
-                "summary": _summarize(name, result),
-                "step": round_num,
-            })
+                yield StreamEvent("tool_result", {
+                    "name": name,
+                    "summary": _summarize(name, result),
+                    "step": round_num,
+                })
 
-            # Append tool result to history
-            self.session.add_message({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": json.dumps(result, ensure_ascii=False),
-            })
+                # Append tool result to history
+                self.session.add_message({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
 
         # Safeguard if loop limit reached
         yield StreamEvent("error", {"message": "Reached maximum reasoning depth."})
         yield StreamEvent("done", {
             "session_id": self.session.id,
             "rounds": self.MAX_ROUNDS,
-            "tools_called": self.MAX_ROUNDS,
+            "tools_called": total_tools_called,
         })
 
     @staticmethod
     def _serialize(msg) -> dict:
         d = {"role": "assistant", "content": msg.content}
         if msg.tool_calls:
-            tc = msg.tool_calls[0]
             d["tool_calls"] = [
                 {
                     "id": tc.id,
@@ -131,6 +137,7 @@ class TripCraftAgent:
                         "arguments": tc.function.arguments,
                     },
                 }
+                for tc in msg.tool_calls
             ]
         return d
 
@@ -157,17 +164,27 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
     user_msgs = [m["content"] for m in messages if m["role"] == "user"]
     user_text = " ".join(user_msgs).lower()
 
-    # 3. Origin validation for transport/flights
+    # 3. Origin validation for transport/flights — relaxed check
     if name in ["search_flights", "search_transportation"]:
         origin = args.get("origin", "")
         if origin:
-            words = [w for w in re.findall(r"\b\w+\b", origin.lower()) if len(w) > 2]
-            if not words or not any(w in user_text for w in words):
+            # Only reject if origin is extremely short/conspicuously fake
+            clean_origin = origin.strip()
+            if len(clean_origin) <= 1:
                 return (
-                    "Validation Error: Starting location is missing or fabricated. "
-                    "The user has not specified where they are starting/departing from. "
+                    "Validation Error: Starting location is missing or invalid. "
                     "Please stop and ask the user: 'Where will you be starting your trip from?'"
                 )
+            # Token-level check: try to find at least partial overlap with user text
+            orig_tokens = [w for w in re.findall(r"\b\w+\b", clean_origin.lower()) if len(w) >= 2]
+            if orig_tokens and not any(w in user_text for w in orig_tokens):
+                # Fallback: check if the first 4 chars of any token appear in user text
+                if not any(t[:4] in user_text for t in orig_tokens if len(t) >= 4):
+                    return (
+                        "Validation Error: Starting location is missing or fabricated. "
+                        "The user has not specified where they are starting/departing from. "
+                        "Please stop and ask the user: 'Where will you be starting your trip from?'"
+                    )
 
     return None
 
@@ -220,3 +237,44 @@ def _summarize(name: str, result: dict) -> str:
         return f"Found {count} web results for '{result.get('query', '?')}'"
 
     return "Done"
+
+
+def _append_fallback_chips(text: str, messages: list[dict]) -> str:
+    """
+    If the LLM response doesn't include follow-up chip syntax, append
+    context-appropriate chips based on what the user has provided.
+    Uses the intake extractor to figure out what's still missing.
+    """
+    from tripcraft.intake import extract_tier1_from_messages
+
+    state = extract_tier1_from_messages(messages)
+    missing = state.missing_fields
+
+    chips = []
+
+    if "origin" in missing:
+        chips.append("[📍 Where should I start from?](followup:I'll be starting from Mumbai)")
+    if "destination" in missing and not state._has_vibe:
+        chips.append("[🌍 Suggest a destination](followup:I want to go to Goa)")
+    if "dates" in missing:
+        chips.append("[📅 Pick dates for me](followup:Plan for June, 4 days)")
+    if "group_size" in missing:
+        chips.append("[👥 I'm traveling solo](followup:I'm traveling solo)")
+    if "budget" in missing:
+        chips.append("[💰 Budget ₹10,000](followup:My budget is ₹10,000)")
+
+    # Generic chips if nothing specific is missing
+    if not chips:
+        chips = [
+            "[🍽️ Tell me about the food](followup:What are the best local dishes and restaurants there?)",
+            "[💰 Break down the budget](followup:Give me a detailed cost breakdown)",
+            "[🏨 Show me more hotels](followup:Show me more hotel options in different price ranges)",
+        ]
+
+    # Don't add chips if text is very short (like an error or one-liner)
+    if len(text.strip()) < 30:
+        return text
+
+    # Append chips after a separator — only if they're not already present
+    chip_section = "\n\n---\n" + "\n".join(chips)
+    return text + chip_section
