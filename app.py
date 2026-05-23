@@ -1,10 +1,12 @@
 import os
 import asyncio
+import time
 import logging
+from collections import defaultdict
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
@@ -40,7 +42,14 @@ async def lifespan(app: FastAPI):
         # Set active_api_key accordingly
         config.nvidia_key = os.getenv("NVIDIA_API_KEY", "")
         config.nvidia_key_2 = os.getenv("NVIDIA_API_KEY_2", "")
-        config.active_api_key = config.nvidia_key_2 or config.nvidia_key
+        config.nvidia_key_3 = os.getenv("NVIDIA_API_KEY_3", "")
+        config.nvidia_key_4 = os.getenv("NVIDIA_API_KEY_4", "")
+        config.nvidia_keys_list = [
+            k for k in [config.nvidia_key, config.nvidia_key_2, config.nvidia_key_3, config.nvidia_key_4]
+            if k and k.strip()
+        ]
+        config.nvidia_keys_list = list(dict.fromkeys(config.nvidia_keys_list))
+        config.active_api_key = config.nvidia_key
     except RuntimeError as e:
         logger.error(f"Configuration initialization failed: {e}")
         # We don't crash startup immediately so the health check can run,
@@ -87,6 +96,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── In-Memory IP-based Rate Limiter Configuration ──
+RATE_LIMIT_REQUESTS = 60  # max 60 requests
+RATE_LIMIT_WINDOW = 60    # per 60 seconds
+client_requests = defaultdict(list)
+
+# ── Production API Key Configuration ──
+TRIPCRAFT_API_KEY = os.getenv("TRIPCRAFT_API_KEY", "")
+
+@app.middleware("http")
+async def security_and_rate_limit_middleware(request: Request, call_next):
+    path = request.url.path
+    
+    # 1. Rate Limiting Check (Bypass static files and root dashboard)
+    if not (path.startswith("/static") or path == "/" or path == "/favicon.ico"):
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        
+        timestamps = client_requests[client_ip]
+        timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+        client_requests[client_ip] = timestamps
+        
+        if len(timestamps) >= RATE_LIMIT_REQUESTS:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."}
+            )
+        client_requests[client_ip].append(now)
+
+    # 2. X-API-Key Authorization Check
+    # Only protect API routes (except the general health endpoint)
+    if path.startswith("/api/") and path != "/api/health":
+        if TRIPCRAFT_API_KEY:
+            api_key = request.headers.get("X-API-Key")
+            if api_key != TRIPCRAFT_API_KEY:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Unauthorized: Invalid or missing X-API-Key header"}
+                )
+
+    return await call_next(request)
 
 # Serve static files (CSS, JS, images)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")

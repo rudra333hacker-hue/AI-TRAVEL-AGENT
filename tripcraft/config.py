@@ -4,15 +4,12 @@ from dotenv import load_dotenv
 
 # ── Supported LLM providers ──
 PROVIDER_NVIDIA = "nvidia"
-PROVIDER_AIMLAPI = "aimlapi"
 
-AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1"
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 # ── Default models per provider ──
 DEFAULT_MODELS = {
     PROVIDER_NVIDIA: "moonshotai/kimi-k2.6",
-    PROVIDER_AIMLAPI: "openai/gpt-4o",
 }
 
 
@@ -27,19 +24,20 @@ class Config:
         if explicit_provider:
             self.llm_provider = explicit_provider.lower()
         else:
-            self.aimlapi_key = os.getenv("AIMLAPI_API_KEY", "")
-            self.nvidia_key = os.getenv("NVIDIA_API_KEY", "")
-            if self.aimlapi_key:
-                self.llm_provider = PROVIDER_AIMLAPI
-            elif self.nvidia_key:
-                self.llm_provider = PROVIDER_NVIDIA
-            else:
-                self.llm_provider = PROVIDER_AIMLAPI  # default fallback
+            self.llm_provider = PROVIDER_NVIDIA
 
         # ── API keys ──
-        self.nvidia_key = os.getenv("NVIDIA_API_KEY", "")
-        self.nvidia_key_2 = os.getenv("NVIDIA_API_KEY_2", "")   # Optional second key for premium model
-        self.aimlapi_key = os.getenv("AIMLAPI_API_KEY", "")
+        self.nvidia_keys_list = []
+        for suffix in ["", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9", "_10"]:
+            val = os.getenv(f"NVIDIA_API_KEY{suffix}")
+            if val and val.strip() and val not in self.nvidia_keys_list:
+                self.nvidia_keys_list.append(val)
+                
+        self.nvidia_key = self.nvidia_keys_list[0] if self.nvidia_keys_list else ""
+        self.nvidia_key_2 = self.nvidia_keys_list[1] if len(self.nvidia_keys_list) > 1 else ""
+        self.nvidia_key_3 = self.nvidia_keys_list[2] if len(self.nvidia_keys_list) > 2 else ""
+        self.nvidia_key_4 = self.nvidia_keys_list[3] if len(self.nvidia_keys_list) > 3 else ""
+        
         self.foursquare_key = os.getenv("FOURSQUARE_API_KEY", "")
         self.amadeus_client_id = os.getenv("AMADEUS_CLIENT_ID", "")
         self.amadeus_client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
@@ -54,21 +52,12 @@ class Config:
         env_model_key = f"{self.llm_provider.upper()}_MODEL"
         self.llm_model = os.getenv(
             env_model_key,
-            DEFAULT_MODELS.get(self.llm_provider, DEFAULT_MODELS[PROVIDER_AIMLAPI])
+            DEFAULT_MODELS.get(self.llm_provider, DEFAULT_MODELS[PROVIDER_NVIDIA])
         )
 
         # ── Active API key & base URL ──
-        if self.llm_provider == PROVIDER_AIMLAPI:
-            self.active_api_key = self.aimlapi_key
-            self.active_base_url = AIMLAPI_BASE_URL
-            if not self.active_api_key:
-                raise RuntimeError(
-                    "AIMLAPI_API_KEY is required when LLM_PROVIDER=aimlapi. "
-                    "Add it to your .env file or set LLM_PROVIDER=nvidia to use NVIDIA."
-                )
-        elif self.llm_provider == PROVIDER_NVIDIA:
-            # Use key_2 for premium model if available
-            self.active_api_key = self.nvidia_key_2 or self.nvidia_key
+        if self.llm_provider == PROVIDER_NVIDIA:
+            self.active_api_key = self.nvidia_key
             self.active_base_url = NVIDIA_BASE_URL
             if not self.active_api_key:
                 raise RuntimeError(
@@ -77,8 +66,7 @@ class Config:
                 )
         else:
             raise RuntimeError(
-                f"Unknown LLM_PROVIDER '{self.llm_provider}'. "
-                f"Supported: {PROVIDER_NVIDIA}, {PROVIDER_AIMLAPI}"
+                f"Unknown LLM_PROVIDER '{self.llm_provider}'."
             )
 
     @property
@@ -90,5 +78,9 @@ class Config:
         return bool(self.amadeus_client_id and self.amadeus_client_secret)
 
     @property
+    def nvidia_keys(self) -> list[str]:
+        return self.nvidia_keys_list
+
+    @property
     def has_premium_model(self) -> bool:
-        return bool(self.nvidia_key_2)
+        return len(self.nvidia_keys_list) > 1

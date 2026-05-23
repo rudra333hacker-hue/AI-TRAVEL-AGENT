@@ -1,4 +1,6 @@
 import uuid
+import sqlite3
+import json
 import asyncio
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
@@ -10,10 +12,13 @@ class Session:
     messages: list = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
+    _save_callback: callable = None
 
     def add_message(self, msg: dict):
         self.messages.append(msg)
         self.last_active = datetime.utcnow()
+        if self._save_callback:
+            self._save_callback(self)
 
     def full_messages(self) -> list:
         """Combine system prompt with message history, injecting current date/time context."""
@@ -26,8 +31,6 @@ class Session:
         return (datetime.utcnow() - self.last_active) > timedelta(minutes=ttl)
 
     def to_response(self, tools_available: list) -> dict:
-        # Check which tools are actually available based on config/keys
-        # (e.g. if we have Amadeus keys but not Foursquare keys)
         all_tools = ["search_flights", "search_hotels", "get_weather_forecast", "search_places", "search_transportation", "search_web"]
         degraded = [t for t in all_tools if t not in tools_available]
         
@@ -41,51 +44,101 @@ class Session:
         }
 
 class SessionManager:
-    def __init__(self, ttl_minutes: int = 30):
-        self._store: dict[str, Session] = {}
+    def __init__(self, ttl_minutes: int = 30, db_path: str = "sessions.db"):
         self._ttl = ttl_minutes
+        self._db_path = db_path
         self._lock = asyncio.Lock()
+        self._init_db()
+
+    def _init_db(self):
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    messages TEXT,
+                    created_at TEXT,
+                    last_active TEXT
+                )
+            """)
+
+    def _to_session(self, row) -> Session:
+        sid, messages_json, created_at_str, last_active_str = row
+        return Session(
+            id=sid,
+            messages=json.loads(messages_json),
+            created_at=datetime.fromisoformat(created_at_str),
+            last_active=datetime.fromisoformat(last_active_str),
+            _save_callback=self.save,
+        )
 
     def create(self) -> Session:
-        s = Session(id=str(uuid.uuid4()))
-        self._store[s.id] = s
+        s = Session(id=str(uuid.uuid4()), _save_callback=self.save)
+        created_str = s.created_at.isoformat()
+        active_str = s.last_active.isoformat()
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "INSERT INTO sessions (id, messages, created_at, last_active) VALUES (?, ?, ?, ?)",
+                (s.id, json.dumps(s.messages), created_str, active_str)
+            )
         return s
 
     def get_or_create(self, session_id: str | None) -> Session:
-        if session_id and session_id in self._store:
-            s = self._store[session_id]
-            s.last_active = datetime.utcnow()
-            return s
+        if session_id:
+            try:
+                s = self.get(session_id)
+                s.last_active = datetime.utcnow()
+                self.save(s)
+                return s
+            except KeyError:
+                pass
         return self.create()
 
     def get(self, session_id: str) -> Session:
-        if session_id not in self._store:
-            raise KeyError(session_id)
-        return self._store[session_id]
+        with sqlite3.connect(self._db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, messages, created_at, last_active FROM sessions WHERE id = ?", (session_id,))
+            row = cursor.fetchone()
+            if not row:
+                raise KeyError(session_id)
+            return self._to_session(row)
+
+    def save(self, session: Session):
+        created_str = session.created_at.isoformat()
+        active_str = session.last_active.isoformat()
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE sessions SET messages = ?, created_at = ?, last_active = ? WHERE id = ?",
+                (json.dumps(session.messages), created_str, active_str, session.id)
+            )
 
     async def delete(self, session_id: str):
         async with self._lock:
-            self._store.pop(session_id, None)
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
 
     @property
     def active_count(self) -> int:
-        return len(self._store)
+        with sqlite3.connect(self._db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM sessions")
+            return cursor.fetchone()[0]
 
     async def cleanup_loop(self, interval: int = 60):
-        """Background coroutine to periodically evict expired idle sessions."""
+        """Background coroutine to periodically evict expired idle sessions from SQLite."""
         while True:
             await asyncio.sleep(interval)
             try:
                 async with self._lock:
-                    expired = [
-                        sid for sid, s in self._store.items()
-                        if s.is_expired(self._ttl)
-                    ]
-                    for sid in expired:
-                        del self._store[sid]
-                    if expired:
-                        import logging
-                        logging.getLogger("tripcraft").info(f"Evicted {len(expired)} expired session(s).")
+                    now = datetime.utcnow()
+                    threshold = (now - timedelta(minutes=self._ttl)).isoformat()
+                    with sqlite3.connect(self._db_path) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT COUNT(*) FROM sessions WHERE last_active < ?", (threshold,))
+                        expired_count = cursor.fetchone()[0]
+                        if expired_count > 0:
+                            conn.execute("DELETE FROM sessions WHERE last_active < ?", (threshold,))
+                            import logging
+                            logging.getLogger("tripcraft").info(f"Evicted {expired_count} expired session(s) from database.")
             except Exception as e:
                 import logging
                 logging.getLogger("tripcraft").error(f"Session cleanup error (non-fatal): {e}")
