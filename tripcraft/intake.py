@@ -166,107 +166,124 @@ def extract_tier1_from_messages(messages: list[dict]) -> Tier1State:
     Returns a Tier1State reflecting what has been provided so far.
     """
     state = Tier1State()
-
-    # Collect all user text
-    user_texts = []
-    for m in messages:
-        if m.get("role") == "user":
-            content = m.get("content", "")
-            if isinstance(content, str):
-                user_texts.append(content)
-            elif isinstance(content, list):
-                for part in content:
-                    if isinstance(part, dict) and part.get("type") == "text":
-                        user_texts.append(part.get("text", ""))
-    combined = " ".join(user_texts).lower()
-
-    # ── Budget ──
-    budget_match = _check_pattern_list(combined, _BUDGET_PATTERNS)
-    if budget_match:
-        state.has_budget = True
-        state.budget_raw = budget_match
-
-    # ── Dates ──
-    date_match = _check_pattern_list(combined, _DATE_PATTERNS)
-    if date_match:
-        state.has_dates = True
-        state.dates_raw = date_match
-
-    # ── Duration ──
-    dur_match = _check_pattern_list(combined, _DURATION_PATTERNS)
-    if dur_match:
-        state.has_duration = True
-        state.duration_raw = dur_match
-        # "weekend" implies dates too
-        if "weekend" in combined:
-            state.has_dates = True
-
-    # ── Group size ──
-    grp_match = _check_pattern_list(combined, _GROUP_PATTERNS)
-    if grp_match:
-        state.has_group_size = True
-        state.group_raw = grp_match
-
-    # ── Cities ──
-    cities_found = []
-    text_lower = combined
-    for city in _ALL_CITIES:
-        if re.search(r'\b' + re.escape(city) + r'\b', text_lower):
-            cities_found.append(city.title())
-
-    # Figure out which city is origin vs destination based on keywords
-    origin_kw = r'\b(?:from|starting|departing|leaving|based in|i am in|i\'m in|i live in|my city|origin|home|current)\b'
-    dest_kw = r'\b(?:to|visit|going|travel to|trip to|destination|want to go|planning to go|head to)\b'
-
-    origin_context = re.findall(origin_kw + r'[\s\w,]+', combined, re.IGNORECASE)
-    dest_context = re.findall(dest_kw + r'[\s\w,]+', combined, re.IGNORECASE)
-
-    # Try to find origin city from origin context
-    for chunk in origin_context:
-        city = _find_city(chunk)
-        if city:
-            state.has_origin = True
-            state.origin = city
-            break
-
-    # Try to find destination city from destination context
-    for chunk in dest_context:
-        city = _find_city(chunk)
-        if city and city != state.origin:
-            state.has_destination = True
-            state.destination = city
-            break
-
-    # If still missing origin/destination, assign from found cities
-    if cities_found:
-        if not state.has_origin and not state.has_destination:
-            # Single city mentioned: likely destination
-            if len(cities_found) == 1:
-                state.has_destination = True
-                state.destination = cities_found[0]
-            elif len(cities_found) >= 2:
-                # Guess: first = origin, second = destination
+    
+    last_question = None
+    
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        
+        # Flatten content if list
+        if isinstance(content, list):
+            content = " ".join([p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"])
+        
+        if role == "assistant":
+            text = content.lower()
+            if "starting from" in text or "start from" in text or "origin" in text:
+                last_question = "origin"
+            elif "want to go" in text or "destination" in text:
+                last_question = "destination"
+            elif "when" in text or "dates" in text or "traveling" in text:
+                last_question = "dates"
+            elif "who" in text or "group" in text or "joining" in text:
+                last_question = "group_size"
+            elif "budget" in text:
+                last_question = "budget"
+            else:
+                last_question = None
+                
+        elif role == "user":
+            text = content.lower()
+            
+            # Extract cities
+            cities_found = []
+            for city in _ALL_CITIES:
+                if re.search(r'\b' + re.escape(city) + r'\b', text):
+                    cities_found.append(city.title())
+            
+            # Context-sensitive extraction based on the last question asked
+            if last_question == "origin" and cities_found:
                 state.has_origin = True
                 state.origin = cities_found[0]
+            elif last_question == "destination" and cities_found:
                 state.has_destination = True
-                state.destination = cities_found[1]
-        elif state.has_origin and not state.has_destination:
-            for c in cities_found:
-                if c != state.origin:
-                    state.has_destination = True
-                    state.destination = c
-                    break
-        elif state.has_destination and not state.has_origin:
-            for c in cities_found:
-                if c != state.destination:
-                    state.has_origin = True
-                    state.origin = c
-                    break
+                state.destination = cities_found[0]
+            elif last_question == "destination" and any(re.search(pat, text) for pat in _VIBE_PATTERNS):
+                state._has_vibe = True
+            elif last_question == "dates" and any(re.search(pat, text) for pat in _DATE_PATTERNS + _DURATION_PATTERNS):
+                state.has_dates = True
+                if any(re.search(pat, text) for pat in _DURATION_PATTERNS):
+                    state.has_duration = True
+            elif last_question == "group_size" and (any(re.search(pat, text) for pat in _GROUP_PATTERNS) or re.search(r'\b\d{1,2}\b', text)):
+                state.has_group_size = True
+            elif last_question == "budget" and (any(re.search(pat, text) for pat in _BUDGET_PATTERNS) or re.search(r'\b\d{3,7}\b', text)):
+                state.has_budget = True
 
-    # ── Vibe (no destination needed) ──
-    vibe_match = _check_pattern_list(combined, _VIBE_PATTERNS)
-    if vibe_match and not state.has_destination:
-        state._has_vibe = True
+            # Global pattern matchers (fallbacks/first turn)
+            if not state.has_budget:
+                budget_match = _check_pattern_list(text, _BUDGET_PATTERNS)
+                if budget_match:
+                    state.has_budget = True
+                    state.budget_raw = budget_match
+            if not state.has_dates:
+                date_match = _check_pattern_list(text, _DATE_PATTERNS)
+                if date_match:
+                    state.has_dates = True
+                    state.dates_raw = date_match
+            if not state.has_duration:
+                dur_match = _check_pattern_list(text, _DURATION_PATTERNS)
+                if dur_match:
+                    state.has_duration = True
+                    state.duration_raw = dur_match
+                    if "weekend" in text:
+                        state.has_dates = True
+            if not state.has_group_size:
+                grp_match = _check_pattern_list(text, _GROUP_PATTERNS)
+                if grp_match:
+                    state.has_group_size = True
+                    state.group_raw = grp_match
+                    
+            if cities_found:
+                has_origin_kw = any(w in text for w in ["from", "starting", "departing", "leaving", "origin"])
+                has_dest_kw = any(w in text for w in ["to", "visit", "going", "trip to", "destination"])
+                
+                if has_origin_kw:
+                    state.has_origin = True
+                    state.origin = cities_found[0]
+                elif has_dest_kw:
+                    state.has_destination = True
+                    state.destination = cities_found[0]
+                else:
+                    if not state.has_origin and not state.has_destination:
+                        if len(cities_found) == 1:
+                            if last_question == "origin":
+                                state.has_origin = True
+                                state.origin = cities_found[0]
+                            else:
+                                state.has_destination = True
+                                state.destination = cities_found[0]
+                        else:
+                            state.has_origin = True
+                            state.origin = cities_found[0]
+                            state.has_destination = True
+                            state.destination = cities_found[1]
+                    elif state.has_origin and not state.has_destination:
+                        for c in cities_found:
+                            if c != state.origin:
+                                state.has_destination = True
+                                state.destination = c
+                                break
+                    elif state.has_destination and not state.has_origin:
+                        for c in cities_found:
+                            if c != state.destination:
+                                state.has_origin = True
+                                state.origin = c
+                                break
+
+            # Vibe check fallback
+            if not state.has_destination and not state._has_vibe:
+                if _check_pattern_list(text, _VIBE_PATTERNS):
+                    state._has_vibe = True
 
     return state
 
@@ -417,6 +434,12 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
     n_user = len(user_msgs)
 
     if n_user == 0:
+        return False, None
+
+    # Fail-safe turn count: if the user has replied 3+ times to details questions
+    # and we are still missing fields, bypass interception and let the smart LLM
+    # ask for details or plan directly to avoid infinite looping.
+    if n_user > 3:
         return False, None
 
     # Check if the latest user message is just a greeting
