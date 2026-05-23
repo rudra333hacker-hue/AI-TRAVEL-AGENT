@@ -119,7 +119,7 @@ def _summarize(name: str, result: dict) -> str:
     if "error" in result:
         return f"Error: {result['error']}"
 
-    if name == "search_flights":
+    elif name == "search_flights":
         flights = result.get("flights", [])
         if flights:
             prices = [f["price"] for f in flights if "price" in f]
@@ -127,6 +127,12 @@ def _summarize(name: str, result: dict) -> str:
                 return f"{len(flights)} flights found (${min(prices):,.2f}–${max(prices):,.2f})"
             return f"{len(flights)} flights found"
         return "No flights found"
+        
+    elif name == "search_transportation":
+        options = result.get("options", [])
+        if options:
+            return f"Found {len(options)} transport modes (dist: {result.get('distance_km')} km)"
+        return "No transportation options found"
         
     elif name == "search_hotels":
         hotels = result.get("hotels", [])
