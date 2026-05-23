@@ -16,8 +16,11 @@ class Session:
         self.last_active = datetime.utcnow()
 
     def full_messages(self) -> list:
-        """Combine system prompt with message history."""
-        return [{"role": "system", "content": SYSTEM_PROMPT}] + self.messages
+        """Combine system prompt with message history, injecting current date/time context."""
+        now = datetime.now()
+        current_date_str = f"Current Year: {now.year}\nToday's Date: {now.strftime('%A, %B %d, %Y')}\nCurrent Local Time: {now.strftime('%I:%M %p')}"
+        system_content = f"{SYSTEM_PROMPT}\n\n## CURRENT TIME CONTEXT (Crucial for travel planning dates):\n{current_date_str}"
+        return [{"role": "system", "content": system_content}] + self.messages
 
     def is_expired(self, ttl: int) -> bool:
         return (datetime.utcnow() - self.last_active) > timedelta(minutes=ttl)
