@@ -195,6 +195,8 @@ async def geocode(place_name: str) -> dict:
     4. Try Open-Meteo Geocoding API (clean REST API, good coverage).
     5. Try DuckDuckGo web search as last resort (regex is fragile).
     """
+    if not isinstance(place_name, str):
+        place_name = str(place_name or "")
     normalized_name = place_name.strip().lower()
 
     # 1. Exact match in POPULAR_MAPPINGS (instant, covers 150+ cities)
