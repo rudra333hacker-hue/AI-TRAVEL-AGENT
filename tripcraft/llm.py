@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from openai import AsyncOpenAI
 
@@ -24,7 +25,7 @@ class LLMClient:
         )
 
     async def complete(self, messages: list, tools: list | None = None):
-        """Send chat completion request to the configured provider."""
+        """Send chat completion request to the configured provider with retries for transient errors."""
         kwargs = {
             "model": self.model,
             "messages": messages,
@@ -36,7 +37,42 @@ class LLMClient:
             kwargs["tool_choice"] = "auto"
             if self.provider == "nvidia":
                 kwargs["parallel_tool_calls"] = False
-        return await self.client.chat.completions.create(**kwargs)
+
+        retries = 4
+        delay = 1.0
+        backoff_factor = 2.0
+        last_exc = None
+
+        for attempt in range(1, retries + 1):
+            try:
+                return await self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                last_exc = e
+                err_str = str(e).lower()
+                # Detect rate limit errors, quotas, or transient server timeouts
+                is_transient = (
+                    "429" in err_str 
+                    or "too many requests" in err_str 
+                    or "rate limit" in err_str 
+                    or "500" in err_str 
+                    or "timeout" in err_str 
+                    or "503" in err_str
+                    or "busy" in err_str
+                )
+                
+                if not is_transient or attempt == retries:
+                    logger.error(f"LLM completion failed permanently: {e}")
+                    raise e
+
+                wait_time = delay * (backoff_factor ** (attempt - 1))
+                logger.warning(
+                    f"LLM rate-limited/transient error: {e}. "
+                    f"Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
+                )
+                await asyncio.sleep(wait_time)
+
+        if last_exc:
+            raise last_exc
 
     async def close(self):
         await self.client.close()
