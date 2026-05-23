@@ -390,6 +390,17 @@ def _build_partial_question(missing: list[str], state: Tier1State) -> str:
     return "\n".join(lines)
 
 
+def is_greeting(text: str) -> bool:
+    """Check if the text is a simple greeting."""
+    clean = re.sub(r'[^\w\s]', '', text.strip().lower())
+    greetings = {
+        "hi", "hello", "hey", "hola", "greetings", "good morning", 
+        "good afternoon", "good evening", "yo", "wassup", "sup", 
+        "hey there", "hi there", "hello there"
+    }
+    return clean in greetings
+
+
 # ── Quick-check: should we intercept this message? ──────────────────────────
 
 def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
@@ -408,6 +419,20 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
     if n_user == 0:
         return False, None
 
+    # Check if the latest user message is just a greeting
+    last_user_content = user_msgs[-1].get("content", "")
+    if isinstance(last_user_content, str):
+        if is_greeting(last_user_content):
+            return False, None
+    elif isinstance(last_user_content, list):
+        text_parts = [
+            p.get("text", "") for p in last_user_content 
+            if isinstance(p, dict) and p.get("type") == "text"
+        ]
+        text_content = " ".join(text_parts)
+        if is_greeting(text_content):
+            return False, None
+
     state = extract_tier1_from_messages(messages)
 
     # If complete, let the LLM handle it
@@ -415,7 +440,6 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
         return False, None
 
     # First message: intercept if 3+ fields missing
-    # Catches vague inputs like "plan a trip" or "I want to go to Goa" (missing origin, dates, group, budget)
     if n_user == 1:
         if len(state.missing_fields) >= 3:
             is_first = True
@@ -425,7 +449,6 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
         return False, None
 
     # Subsequent messages: intercept if 2+ critical fields still missing
-    # Critical = origin, destination, budget, dates — without these the LLM can't plan
     missing = state.missing_fields
     critical_missing = [f for f in missing if f in ("origin", "destination", "budget", "dates")]
     if len(critical_missing) >= 2:
