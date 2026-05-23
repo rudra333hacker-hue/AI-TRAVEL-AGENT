@@ -77,12 +77,23 @@ class PlaceSearch:
                     for item in raw:
                         cats = [c.get("name") for c in item.get("categories", [])]
                         loc_info = item.get("location", {})
+                        geocodes = item.get("geocodes", {}).get("main", {})
+                        plat = geocodes.get("latitude")
+                        plon = geocodes.get("longitude")
+                        
+                        if plat is not None and plon is not None:
+                            maps_link = f"https://www.google.com/maps/search/?api=1&query={plat},{plon}"
+                        else:
+                            maps_link = f"https://www.google.com/maps/search/?api=1&query={item.get('name', 'Unknown Place').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}"
+
                         places.append({
                             "name": item.get("name", "Unknown Place"),
                             "categories": cats,
                             "address": loc_info.get("formatted_address") or loc_info.get("address") or "",
                             "distance_meters": item.get("distance"),
-                            "maps_link": f"https://www.google.com/maps/search/?api=1&query={item.get('name', 'Unknown Place').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
+                            "latitude": plat,
+                            "longitude": plon,
+                            "maps_link": maps_link,
                             "image_url": f"https://source.unsplash.com/featured/600x400/?{item.get('name', 'place').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                         })
                     foursquare_success = True
@@ -118,12 +129,16 @@ class PlaceSearch:
                 if rng.choice([True, False]):
                     name = name.replace("Central", resolved_city_name).replace("National", resolved_city_name).replace("Grand", resolved_city_name).replace("Old Town", f"{resolved_city_name} Old Town")
                 
+                offset_lat = lat + rng.uniform(-0.015, 0.015)
+                offset_lon = lon + rng.uniform(-0.015, 0.015)
                 places.append({
                     "name": name,
                     "categories": item["categories"],
                     "address": f"{rng.randint(1, 450)} Promenade Ave, {resolved_city_name}",
                     "distance_meters": rng.randint(200, 3500),
-                    "maps_link": f"https://www.google.com/maps/search/?api=1&query={name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
+                    "latitude": offset_lat,
+                    "longitude": offset_lon,
+                    "maps_link": f"https://www.google.com/maps/search/?api=1&query={offset_lat},{offset_lon}",
                     "image_url": f"https://source.unsplash.com/featured/600x400/?{name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                 })
 
