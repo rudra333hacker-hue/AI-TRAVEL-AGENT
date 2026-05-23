@@ -152,6 +152,8 @@ def _check_pattern_list(text: str, patterns: list[str]) -> Optional[str]:
 
 def _find_city(text: str) -> Optional[str]:
     """Find any known city in the text."""
+    if not isinstance(text, str):
+        return None
     text_lower = text.lower()
     for city in _ALL_CITIES:
         # Use word boundary matching
