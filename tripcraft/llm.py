@@ -34,6 +34,8 @@ class LLMClient:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+            if self.provider == "nvidia":
+                kwargs["parallel_tool_calls"] = False
         return await self.client.chat.completions.create(**kwargs)
 
     async def close(self):
