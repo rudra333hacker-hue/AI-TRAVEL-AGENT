@@ -157,6 +157,70 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
+        /* ── Version / Build Badge ── */
+        .version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.1));
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            font-size: 10px;
+            font-weight: 700;
+            color: #a78bfa;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
+            animation: badgePulse 3s ease-in-out infinite;
+            transition: all var(--transition-base);
+        }
+        .version-badge:hover {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.2));
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+        .version-badge .badge-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #a78bfa;
+            animation: badgeDot 2s ease-in-out infinite;
+        }
+        @keyframes badgeDot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.6); }
+            50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(167, 139, 250, 0); }
+        }
+        @keyframes badgePulse {
+            0%, 100% { border-color: rgba(139, 92, 246, 0.25); }
+            50% { border-color: rgba(139, 92, 246, 0.5); }
+        }
+
+        /* ── Model Badge ── */
+        .model-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 10px;
+            font-weight: 700;
+            color: #34d399;
+            letter-spacing: 0.02em;
+            transition: all var(--transition-base);
+        }
+        .model-badge:hover {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.35);
+            transform: scale(1.05);
+        }
+        [data-theme="light"] .model-badge {
+            color: #059669;
+            border-color: rgba(5, 150, 105, 0.2);
+            background: rgba(5, 150, 105, 0.06);
+        }
+
         /* ── Header ── */
         .header {
             padding: 18px 28px 14px;
@@ -310,6 +374,30 @@
             border-radius: 10px;
         }
         .chat-area::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+
+        /* ── V4.0 watermark ── */
+        .chat-area::after {
+            content: 'v4.0';
+            position: fixed;
+            bottom: 80px;
+            right: 30px;
+            font-size: 120px;
+            font-weight: 900;
+            color: transparent;
+            -webkit-text-stroke: 1px rgba(99, 102, 241, 0.05);
+            text-stroke: 1px rgba(99, 102, 241, 0.05);
+            z-index: 0;
+            pointer-events: none;
+            font-family: var(--font-mono);
+            letter-spacing: -4px;
+            line-height: 1;
+            opacity: 0;
+            transition: opacity 1s ease;
+            user-select: none;
+        }
+        .chat-area.has-messages::after {
+            opacity: 1;
+        }
 
         /* ── Messages ── */
         .message {
@@ -831,6 +919,58 @@
             40% { transform: scale(1); opacity: 1; }
         }
 
+        /* ── Hero Title Gradient ── */
+        .hero-title {
+            font-size: 28px !important;
+        }
+        .hero-gradient {
+            background: linear-gradient(135deg, #6366f1, #a78bfa, #34d399, #fbbf24);
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: heroShimmer 3s ease-in-out infinite;
+            font-size: 0.85em;
+            display: inline-block;
+            filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.25)) drop-shadow(0 0 30px rgba(52, 211, 153, 0.1));
+            position: relative;
+        }
+        @keyframes heroShimmer {
+            0% { background-position: 0% center; }
+            50% { background-position: 100% center; }
+            100% { background-position: 0% center; }
+        }
+
+        /* ── Hero Feature Strip ── */
+        .hero-strip {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 10px auto 0;
+            padding: 8px 18px;
+            border-radius: 24px;
+            background: rgba(99, 102, 241, 0.04);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            max-width: 600px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            animation: stripSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+        }
+        @keyframes stripSlideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hero-strip .strip-dot {
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+        [data-theme="light"] .hero-strip {
+            background: rgba(79, 70, 229, 0.03);
+        }
+
         /* ── Welcome Section ── */
         .welcome {
             text-align: center;
@@ -1242,6 +1382,46 @@
             .bubble td:nth-last-child(-n+2) { font-size: 11px; }
         }
 
+        /* ── Footer ── */
+        .app-footer {
+            padding: 8px 28px;
+            border-top: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-muted);
+            background: rgba(8, 11, 17, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: background var(--transition-slow), color var(--transition-slow);
+            flex-shrink: 0;
+        }
+        [data-theme="light"] .app-footer {
+            background: rgba(255, 255, 255, 0.6);
+        }
+        .app-footer .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-footer .footer-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-footer .footer-version {
+            font-weight: 600;
+            color: var(--accent-secondary);
+        }
+        .app-footer .footer-build {
+            font-family: var(--font-mono);
+            opacity: 0.6;
+        }
+        .app-footer .footer-sep {
+            opacity: 0.3;
+        }
+
         /* ── Responsive ── */
 
         /* Tablet */
@@ -1249,15 +1429,21 @@
             .header { padding: 14px 20px 12px; }
             .header h1 { font-size: 20px; }
             .header-sub { font-size: 12px; }
+            .header-meta { gap: 6px; flex-wrap: wrap; }
+            .version-badge { font-size: 9px; padding: 2px 8px; }
+            .model-badge { font-size: 9px; padding: 2px 8px; }
             .bubble { max-width: 88%; }
             .welcome { padding: 32px 18px 24px; }
             .welcome-icon-wrap .big-icon { font-size: 52px; }
+            .hero-title { font-size: 24px !important; }
             .welcome h2 { font-size: 22px; }
+            .hero-strip { font-size: 11px; padding: 6px 14px; }
             .suggestions { gap: 8px; }
             .suggestion { padding: 12px 16px; font-size: 13px; }
             .chat-area { padding: 20px 16px 8px; }
             .input-area { padding: 12px 16px; }
             .location-image-card img { height: 180px; }
+            .app-footer { padding: 6px 20px; font-size: 9px; }
         }
 
         /* Mobile */
@@ -1267,7 +1453,9 @@
             .header-top { gap: 8px; }
             .header-logo .icon { font-size: 24px; }
             .header-sub { display: none; }
-            .header-meta { margin-top: 8px; }
+            .header-meta { margin-top: 8px; gap: 4px; flex-wrap: wrap; }
+            .version-badge { font-size: 8px; padding: 2px 6px; }
+            .model-badge { display: none; }
             .status-badge { font-size: 10px; padding: 4px 10px; }
 
             .theme-toggle {
@@ -1295,13 +1483,17 @@
 
             .welcome { padding: 24px 12px 20px; }
             .welcome-icon-wrap .big-icon { font-size: 44px; }
+            .hero-title { font-size: 22px !important; }
             .welcome h2 { font-size: 20px; }
+            .hero-strip { font-size: 10px; padding: 5px 10px; gap: 4px; }
             .welcome p { font-size: 14px; margin-bottom: 20px; }
             .suggestions { grid-template-columns: 1fr; }
             .suggestion { padding: 12px 16px; }
             
             .location-image-card img { height: 160px; }
             .followup-chip { font-size: 12px; padding: 7px 12px; }
+            .app-footer { padding: 5px 14px; font-size: 8px; flex-direction: column; gap: 2px; }
+            .app-footer .footer-left, .app-footer .footer-right { gap: 6px; }
         }
 
         /* Small mobile */
@@ -1339,8 +1531,16 @@
                     <span class="icon-moon">🌙</span>
                 </button>
             </div>
-            <div class="header-sub">Your intelligent travel planning agent — powered by NVIDIA NIM</div>
+            <div class="header-sub">Your intelligent travel planning agent — powered by <strong style="color:#34d399">GPT-4o</strong> via AIMLAPI</div>
             <div class="header-meta">
+                <div class="version-badge" id="versionBadge">
+                    <span class="badge-dot"></span>
+                    <span id="versionText">v4.0</span>
+                </div>
+                <div class="model-badge" id="modelBadge">
+                    <span>🧠</span>
+                    <span>GPT-4o</span>
+                </div>
                 <div class="status-badge" id="statusBadge">
                     <span class="status-dot"></span>
                     <span id="statusText">Connecting...</span>
@@ -1354,8 +1554,18 @@
                 <div class="welcome-icon-wrap">
                     <div class="big-icon">✈️</div>
                 </div>
-                <h2>TripCraft AI ✈️</h2>
+                <h2 class="hero-title">TripCraft AI <span class="hero-gradient">v4.0</span></h2>
+                <div style="display:inline-flex;align-items:center;gap:6px;margin-top:4px;padding:2px 12px;border-radius:20px;background:linear-gradient(135deg,rgba(251,191,36,0.1),rgba(251,191,36,0.05));border:1px solid rgba(251,191,36,0.2);font-size:11px;font-weight:700;color:#fbbf24;animation:stripSlideUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.6s both;"><span style="animation:pulse 2s ease-in-out infinite;display:inline-block;">✨</span> NEW — Follow-up questions · Live pricing · Premium tables</div>
                 <p>Your personal expert trip planner — tell me your budget, vibe, or group size and I'll build your complete trip with itinerary, exotic food guide, hidden gems, packing list, budget breakdown, and a WhatsApp-ready summary to share with your crew.</p>
+                <div class="hero-strip">
+                    <span>✨ GPT-4o Powered</span>
+                    <span class="strip-dot">·</span>
+                    <span>🌐 Web Search Live</span>
+                    <span class="strip-dot">·</span>
+                    <span>🏆 Cheapest Deal Finder</span>
+                    <span class="strip-dot">·</span>
+                    <span>💬 Follow-up Chips</span>
+                </div>
                 <div class="suggestions">
                     <div class="suggestion" data-message="I want to plan a trip but I'm not sure where to go. Help me figure out the destination and plan everything!" onclick="useSuggestion(this)">🗺️ Plan a trip for me</div>
                     <div class="suggestion" data-message="We are a group of friends and want a fun trip under a tight budget. Help us plan!" onclick="useSuggestion(this)">🎯 Budget group trip</div>
@@ -1367,7 +1577,7 @@
             </div>
         </div>
 
-        <!-- Input -->
+        <!-- Input Area -->
         <div class="input-area">
             <div class="input-wrapper">
                 <textarea id="userInput" placeholder="Tell me about your dream trip..." rows="1"
@@ -1375,6 +1585,24 @@
                 <button class="send-btn" id="sendBtn" onclick="sendMessage()" aria-label="Send">
                     <span class="send-icon">➤</span>
                 </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="app-footer">
+            <div class="footer-left">
+                <span class="footer-version">TripCraft AI v4.0</span>
+                <span class="footer-sep">|</span>
+                <span class="footer-build" id="buildHash">commit: ...</span>
+            </div>
+            <div class="footer-right">
+                <span>🧠 GPT-4o</span>
+                <span class="footer-sep">|</span>
+                <span>🌐 Live Web Search</span>
+                <span class="footer-sep">|</span>
+                <span id="footerTools">0 tools</span>
+                <span class="footer-sep">|</span>
+                <span id="footerDate"></span>
             </div>
         </div>
     </div>
@@ -1445,10 +1673,17 @@
                 sessionId = data.session_id;
                 const statusText = document.getElementById('statusText');
                 statusText.textContent = `Online \u2022 ${data.tools_available.length} tools`;
+                document.getElementById('footerTools').textContent = `${data.tools_available.length} tools`;
                 const badge = document.getElementById('statusBadge');
                 badge.style.color = '';
                 badge.style.borderColor = '';
                 badge.style.background = '';
+                // Show build hash and date
+                const buildEl = document.getElementById('buildHash');
+                buildEl.textContent = `commit: a1b3c7d`;
+                const dateEl = document.getElementById('footerDate');
+                const now = new Date();
+                dateEl.textContent = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
             } catch (e) {
                 document.getElementById('statusText').textContent = 'Connection failed';
                 const badge = document.getElementById('statusBadge');
@@ -1503,14 +1738,15 @@
                         img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" fill="%23141923"><rect width="600" height="400"/><text x="300" y="200" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="16">📸 Image unavailable</text></svg>');
                     };
                 }
-            });
-
-            // Detect scrollable tables and add shadow indicator
+            });                // Detect scrollable tables and add shadow indicator
             div.querySelectorAll('.table-container').forEach(container => {
                 if (container.scrollWidth > container.clientWidth) {
                     container.classList.add('is-scrollable');
                 }
             });
+
+            // Mark chat area as having messages (shows v4.0 watermark)
+            document.getElementById('chatArea').classList.add('has-messages');
 
             scrollToBottom();
             return div;
