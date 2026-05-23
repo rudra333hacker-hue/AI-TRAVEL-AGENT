@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TripCraft AI — Your Intelligent Travel Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2236;
+            --bg-glass: rgba(26, 34, 54, 0.85);
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: rgba(99, 102, 241, 0.15);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --tool-bg: rgba(99, 102, 241, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+            z-index: 0;
+            animation: bgPulse 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            padding: 20px 24px 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(10, 14, 26, 0.8);
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .header-logo .icon {
+            font-size: 32px;
+            filter: drop-shadow(0 0 12px var(--accent-glow));
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #6366f1, #a78bfa, #6366f1);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s linear infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        .header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 16px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-area::-webkit-scrollbar { width: 4px; }
+        .chat-area::-webkit-scrollbar-track { background: transparent; }
+        .chat-area::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+
+        /* Messages */
+        .message {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user { flex-direction: row-reverse; }
+
+        .avatar {
+            width: 36px; height: 36px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .avatar.agent {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .avatar.user {
+            background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+        }
+
+        .bubble {
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.65;
+            letter-spacing: 0.01em;
+        }
+
+        .message.user .bubble {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message.agent .bubble {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 6px;
+            color: var(--text-primary);
+        }
+
+        .message.agent .bubble strong { color: #a78bfa; }
+
+        /* Tool call cards */
+        .tool-event {
+            margin-bottom: 12px;
+            animation: fadeInUp 0.25s ease-out;
+        }
+
+        .tool-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            background: var(--tool-bg);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            margin-left: 48px;
+        }
+
+        .tool-card .tool-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .tool-card .tool-name {
+            font-weight: 600;
+            color: var(--accent-secondary);
+        }
+
+        .tool-card .tool-detail {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .tool-card.result {
+            border-color: rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.06);
+        }
+
+        .tool-card.result .tool-name { color: var(--success); }
+
+        .tool-card.error {
+            border-color: rgba(239, 68, 68, 0.2);
+            background: rgba(239, 68, 68, 0.06);
+        }
+
+        /* Thinking indicator */
+        .thinking {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            margin-left: 48px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            background: var(--tool-bg);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        .thinking-dots span {
+            display: inline-block;
+            width: 6px; height: 6px;
+            margin: 0 2px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            animation: dotBounce 1.4s infinite both;
+        }
+
+        .thinking-dots span:nth-child(2) { animation-delay: 0.16s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.32s; }
+
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Welcome */
+        .welcome {
+            text-align: center;
+            padding: 60px 24px 40px;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .welcome .big-icon { font-size: 64px; margin-bottom: 16px; filter: drop-shadow(0 0 30px var(--accent-glow)); }
+        .welcome h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); }
+        .welcome p { font-size: 14px; color: var(--text-secondary); max-width: 420px; margin: 0 auto 28px; line-height: 1.6; }
+
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .suggestion {
+            padding: 10px 16px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .suggestion:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+            background: var(--tool-bg);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(10, 14, 26, 0.9);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            max-width: 100%;
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            padding: 14px 18px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-wrapper textarea:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .input-wrapper textarea::placeholder { color: var(--text-muted); }
+
+        .send-btn {
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Markdown rendering */
+        .bubble h1, .bubble h2, .bubble h3 { margin: 14px 0 6px; color: #a78bfa; }
+        .bubble h3 { font-size: 15px; }
+        .bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
+        .bubble li { margin: 4px 0; }
+        .bubble code { background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .bubble hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+        @media (max-width: 600px) {
+            .bubble { max-width: 88%; }
+            .suggestions { flex-direction: column; }
+            .header h1 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-logo">
+                <span class="icon">✈️</span>
+                <h1>TripCraft AI</h1>
+            </div>
+            <p>Your intelligent travel planning agent — powered by NVIDIA NIM</p>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-area" id="chatArea">
+            <div class="welcome" id="welcome">
+                <div class="big-icon">🌍</div>
+                <h2>Where do you want to go?</h2>
+                <p>I'm your AI travel agent. Tell me your dream trip — budget, dates, vibes, dietary needs — and I'll plan everything with real-time data.</p>
+                <div class="suggestions">
+                    <div class="suggestion" onclick="useSuggestion(this)">🏖️ Chill beach trip for 2, budget $2000</div>
+                    <div class="suggestion" onclick="useSuggestion(this)">🏔️ Adventure trip, surprise me! $1500</div>
+                    <div class="suggestion" onclick="useSuggestion(this)">🇮🇹 5 days in Italy, vegetarian, couple</div>
+                    <div class="suggestion" onclick="useSuggestion(this)">🎌 Tokyo hidden gems, solo, $3000</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <textarea id="userInput" placeholder="Tell me about your dream trip..." rows="1"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let isStreaming = false;
+        const API_BASE = window.location.origin;
+
+        const TOOL_ICONS = {
+            'geocode': '🌍',
+            'search_flights': '✈️',
+            'search_hotels': '🏨',
+            'search_places': '📍',
+            'get_weather_forecast': '🌤️'
+        };
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('userInput');
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        });
+
+        // Initialize session
+        async function initSession() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/sessions`, { method: 'POST' });
+                const data = await resp.json();
+                sessionId = data.session_id;
+                document.getElementById('statusText').textContent = `Agent Online • ${data.tools_available.length} tools`;
+                document.getElementById('statusBadge').style.color = '#10b981';
+            } catch (e) {
+                document.getElementById('statusText').textContent = 'Connection failed';
+                document.getElementById('statusBadge').style.color = '#ef4444';
+            }
+        }
+
+        function useSuggestion(el) {
+            document.getElementById('userInput').value = el.textContent.replace(/^..\s/, '');
+            sendMessage();
+        }
+
+        function scrollToBottom() {
+            const area = document.getElementById('chatArea');
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function addMessage(role, html) {
+            const welcome = document.getElementById('welcome');
+            if (welcome) welcome.remove();
+
+            const chat = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            const emoji = role === 'user' ? '👤' : '🤖';
+            const avatarClass = role === 'user' ? 'user' : 'agent';
+            div.innerHTML = `
+                <div class="avatar ${avatarClass}">${emoji}</div>
+                <div class="bubble">${html}</div>
+            `;
+            chat.appendChild(div);
+            scrollToBottom();
+            return div;
+        }
+
+        function addToolEvent(type, name, detail) {
+            const chat = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = 'tool-event';
+            const icon = TOOL_ICONS[name] || '🔧';
+            const cardClass = type === 'result' ? 'result' : (type === 'error' ? 'error' : '');
+            const label = type === 'call' ? 'Calling' : (type === 'result' ? '✓ Result' : '✗ Error');
+            div.innerHTML = `
+                <div class="tool-card ${cardClass}">
+                    <span class="tool-icon">${icon}</span>
+                    <div>
+                        <span class="tool-name">${label}: ${name}</span>
+                        <div class="tool-detail">${detail}</div>
+                    </div>
+                </div>
+            `;
+            chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function addThinking(text) {
+            const chat = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = 'thinking';
+            div.id = 'thinkingIndicator';
+            div.innerHTML = `
+                <div class="thinking-dots"><span></span><span></span><span></span></div>
+                <span>${text}</span>
+            `;
+            chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function removeThinking() {
+            const el = document.getElementById('thinkingIndicator');
+            if (el) el.remove();
+        }
+
+        function formatMarkdown(text) {
+            return text
+                .replace(/### (.*)/g, '<h3>$1</h3>')
+                .replace(/## (.*)/g, '<h2>$1</h2>')
+                .replace(/# (.*)/g, '<h1>$1</h1>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/^- (.*)/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+                .replace(/^\d+\. (.*)/gm, '<li>$1</li>')
+                .replace(/\n{2,}/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const msg = input.value.trim();
+            if (!msg || isStreaming) return;
+
+            if (!sessionId) await initSession();
+
+            isStreaming = true;
+            document.getElementById('sendBtn').disabled = true;
+            input.value = '';
+            input.style.height = 'auto';
+
+            addMessage('user', msg.replace(/</g, '&lt;'));
+            addThinking('Understanding your request...');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, message: msg })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    let eventType = '';
+                    for (const line of lines) {
+                        if (line.startsWith('event: ')) {
+                            eventType = line.slice(7).trim();
+                        } else if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            handleEvent(eventType, data);
+                        }
+                    }
+                }
+            } catch (err) {
+                removeThinking();
+                addMessage('agent', `<span style="color:#ef4444">Connection error: ${err.message}</span>`);
+            }
+
+            isStreaming = false;
+            document.getElementById('sendBtn').disabled = false;
+            input.focus();
+        }
+
+        function handleEvent(type, data) {
+            switch (type) {
+                case 'thinking':
+                    // Already showing thinking indicator
+                    break;
+                case 'tool_call':
+                    removeThinking();
+                    const argsStr = Object.entries(data.args).map(([k,v]) => `${k}="${v}"`).join(', ');
+                    addToolEvent('call', data.name, argsStr);
+                    addThinking(`Running ${data.name}...`);
+                    break;
+                case 'tool_result':
+                    removeThinking();
+                    addToolEvent('result', data.name, data.summary);
+                    addThinking('Analyzing results...');
+                    break;
+                case 'content':
+                    removeThinking();
+                    addMessage('agent', formatMarkdown(data.text));
+                    break;
+                case 'error':
+                    removeThinking();
+                    addToolEvent('error', 'error', data.message);
+                    break;
+                case 'done':
+                    removeThinking();
+                    break;
+            }
+        }
+
+        // Boot
+        initSession();
+    </script>
+</body>
+</html>
