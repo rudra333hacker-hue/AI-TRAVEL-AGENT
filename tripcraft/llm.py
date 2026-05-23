@@ -1,7 +1,7 @@
 from openai import AsyncOpenAI
 
 class LLMClient:
-    MODEL = "mistralai/mistral-large-2-instruct"
+    MODEL = "meta/llama-3.3-70b-instruct"
     BASE_URL = "https://integrate.api.nvidia.com/v1"
 
     def __init__(self, config):
