@@ -8,6 +8,10 @@ services:
         sync: false
       - key: FOURSQUARE_API_KEY
         sync: false
+      - key: AMADEUS_CLIENT_ID
+        sync: false
+      - key: AMADEUS_CLIENT_SECRET
+        sync: false
       - key: PORT
         value: 8000
       - key: HOST

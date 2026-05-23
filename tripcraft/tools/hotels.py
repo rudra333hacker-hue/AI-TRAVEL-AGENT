@@ -114,6 +114,7 @@ class HotelSearch:
                                 "price_per_night_inr": float(price_per_night * 83),
                                 "total_price_inr": float(total_price * 83),
                                 "currency": "USD",
+                                "booking_link": f"https://www.booking.com/searchresults.html?ss={item.get('name', 'Unknown Hotel').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                                 "live_offer": True,
                                 "note": f"Retrieved via Foursquare. Estimated price for {days} night(s)."
                             })
@@ -159,6 +160,7 @@ class HotelSearch:
                         "price_per_night_inr": float(price_per_night * 83),
                         "total_price_inr": float(total_price * 83),
                         "currency": "USD",
+                        "booking_link": f"https://www.booking.com/searchresults.html?ss={hotel_name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                         "live_offer": False,
                         "note": f"Simulated lodging. Price estimated for {days} night(s)."
                     })

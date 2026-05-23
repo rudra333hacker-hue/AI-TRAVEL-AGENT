@@ -452,8 +452,8 @@ When generating the final plan, you MUST explicitly include all of the following
 5. Best season/month to visit
 
 **Transportation & Route Options (Multi-Modal Comparison — Let User Choose!):**
-*Use the `search_transportation` tool to generate a complete comparison of ALL modes. Do NOT default to flights. Always present every available mode as a comparison table and ask the user which they prefer.*
-6. Transport comparison table (Full comparison of ALL available modes: Flight vs Train vs Bus vs Car Rental/Driving — listing prices, travel times, viability notes, and group split potential for each)
+*Use the `search_transportation` tool to generate a complete comparison of ALL modes. Do NOT default to flights. Always present every available mode as a comparison table, including the `booking_link` value as a clickable markdown link (e.g. `[Book/View](link)`), and ask the user which they prefer.*
+6. Transport comparison table (Full comparison of ALL available modes: Flight vs Train vs Bus vs Car Rental/Driving — listing prices, travel times, viability notes, clickable booking links, and group split potential for each)
 7. Flight details (If user selects flights: recommended airline, flight number, check-in requirements)
 8. Train details (If user selects train: recommended train class, station names, price, frequency)
 9. Bus details (If user selects bus: bus operator names, comfort level, pricing, pickup points)
@@ -462,8 +462,8 @@ When generating the final plan, you MUST explicitly include all of the following
 12. Preferred local transport mode at destination (e.g. metro, taxi, walking, auto-rickshaw)
 
 **Accommodation & Stay (Clean Hotel Comparisons):**
-*Compare at least 2–3 specific hotel options found by the `search_hotels` tool.*
-13. Hotel choices comparison (Compare budget vs comfortable hotel names, nightly rates, and ratings)
+*Compare at least 2–3 specific hotel options found by the `search_hotels` tool. Always include the `booking_link` from the tool response as a clickable markdown link in the hotel table.*
+13. Hotel choices comparison (Compare budget vs comfortable hotel names, nightly rates, ratings, key amenities, and clickable booking links)
 14. Hotel star rating / style (e.g., boutique, luxury, hostel, homestay)
 15. Hotel location / address
 16. Nightly rate per hotel

@@ -74,6 +74,7 @@ async def _fetch_real_transport_data(origin: str, destination: str, departure_da
                     "duration": f"~{max(1, int(distance_km / 70))}h {int((distance_km / 70) % 1 * 60)}m",
                     "price_usd": round(avg_price / 83, 2),  # Convert INR to USD for internal consistency
                     "price_inr": round(avg_price),
+                    "booking_link": f"https://www.google.com/search?q=bus+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
                     "viability": "Cheapest option — real prices from web",
                     "note": f"Live web result: ~₹{round(avg_price)} per person. Multiple operators available.",
                     "data_source": "web_search"
@@ -91,6 +92,7 @@ async def _fetch_real_transport_data(origin: str, destination: str, departure_da
                     "duration": f"~{max(1, int(distance_km / 110))}h {int((distance_km / 110) % 1 * 60)}m",
                     "price_usd": round(avg_price / 83, 2),
                     "price_inr": round(avg_price),
+                    "booking_link": f"https://www.google.com/search?q=train+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
                     "viability": "Most comfortable & scenic — real prices from web",
                     "note": f"Live web result: ~₹{round(avg_price)} per person.",
                     "data_source": "web_search"
@@ -167,6 +169,7 @@ async def search(origin: str, destination: str, departure_date: str,
                     "duration": f"{hours}h {minutes}m",
                     "price_usd": p_usd,
                     "price_inr": round(p_usd * 83.0),
+                    "booking_link": f"https://www.google.com/travel/flights?q=Flights+from+{origin_loc['name'].replace(' ', '+')}+to+{dest_loc['name'].replace(' ', '+')}+on+{departure_date}",
                     "viability": "Best for long distances" if distance > 600 else "Faster but expensive",
                     "note": "Requires airport transfers and check-in time."
                 })
@@ -187,6 +190,7 @@ async def search(origin: str, destination: str, departure_date: str,
                 "duration": f"{t_hours}h {t_minutes}m" if t_hours > 0 else f"{t_minutes}m",
                 "price_usd": p_usd,
                 "price_inr": round(p_usd * 83.0),
+                "booking_link": f"https://www.google.com/search?q=train+booking+from+{origin_loc['name'].replace(' ', '+')}+to+{dest_loc['name'].replace(' ', '+')}",
                 "viability": "Most comfortable & scenic" if distance <= 1000 else "Slow for long distances",
                 "note": "Direct city center connection. Zero check-in fees."
             })
@@ -207,6 +211,7 @@ async def search(origin: str, destination: str, departure_date: str,
                 "duration": f"{b_hours}h {b_minutes}m" if b_hours > 0 else f"{b_minutes}m",
                 "price_usd": p_usd,
                 "price_inr": round(p_usd * 83.0),
+                "booking_link": f"https://www.google.com/search?q=bus+booking+from+{origin_loc['name'].replace(' ', '+')}+to+{dest_loc['name'].replace(' ', '+')}",
                 "viability": "Cheapest option",
                 "note": "Multiple stops, subject to traffic conditions."
             })
@@ -228,6 +233,7 @@ async def search(origin: str, destination: str, departure_date: str,
                 "duration": f"{d_hours}h {d_minutes}m" if d_hours > 0 else f"{d_minutes}m",
                 "price_usd": p_usd,
                 "price_inr": round(p_usd * 83.0),
+                "booking_link": f"https://www.google.com/search?q=car+rental+from+{origin_loc['name'].replace(' ', '+')}+to+{dest_loc['name'].replace(' ', '+')}",
                 "viability": "Best for flexibility & groups" if distance <= 500 else "Tiring for solo drivers",
                 "note": "Price is for the entire vehicle (split friendly!). Includes fuel estimate."
             })

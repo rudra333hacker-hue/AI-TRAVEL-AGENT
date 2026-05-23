@@ -169,6 +169,7 @@ class FlightSearch:
                     "price_usd": float(grand_total) if grand_total != "N/A" else 0,
                     "price_inr": round(float(grand_total) * 83.0, 2) if grand_total != "N/A" else 0,
                     "currency": currency,
+                    "booking_link": f"https://www.google.com/travel/flights?q=Flights%20to%20{dest_code}%20from%20{origin_code}%20on%20{departure_date}",
                     "note": "Live pricing via Amadeus API",
                 })
             except Exception as e:
@@ -238,6 +239,7 @@ class FlightSearch:
                 "price_usd": ticket_price,
                 "price_inr": round(ticket_price * 83.0, 2),
                 "currency": "USD",
+                "booking_link": f"https://www.google.com/travel/flights?q=Flights%20to%20{dest_loc['name'].replace(' ', '%20')}%20from%20{origin_loc['name'].replace(' ', '%20')}%20on%20{departure_date}",
                 "note": "Estimated price based on distance (Amadeus not configured)",
             })
 

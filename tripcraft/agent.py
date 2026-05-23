@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass
 from typing import AsyncGenerator
 
+from tripcraft.intake import should_ask_tier1
+
 @dataclass
 class StreamEvent:
     type: str       # thinking | tool_call | tool_result | content | error | done
@@ -12,7 +14,7 @@ class StreamEvent:
         return json.dumps(self.data, ensure_ascii=False)
 
 class TripCraftAgent:
-    MAX_ROUNDS = 10
+    MAX_ROUNDS = 12
 
     def __init__(self, llm, tools, session):
         self.llm = llm
@@ -25,17 +27,31 @@ class TripCraftAgent:
 
         yield StreamEvent("thinking", {"step": 0, "status": "Understanding your request..."})
 
+        # ── PHASE 1: Deterministic Tier 1 Intake Enforcement ──────────────────
+        # Before calling the LLM at all, check if mandatory intake data is missing.
+        # This ensures the agent always asks the right questions regardless of model.
+        should_intercept, tier1_question = should_ask_tier1(self.session.messages)
+        if should_intercept and tier1_question:
+            yield StreamEvent("content", {"text": tier1_question})
+            yield StreamEvent("done", {
+                "session_id": self.session.id,
+                "rounds": 0,
+                "tools_called": 0,
+            })
+            # Add the question to history so the LLM has context
+            self.session.add_message({"role": "assistant", "content": tier1_question})
+            return
+
+        # ── PHASE 2: Normal LLM ReAct loop ────────────────────────────────────
         for round_num in range(1, self.MAX_ROUNDS + 1):
             try:
-                # 2. Get completion from NIM (async, non-blocking)
-                # If we have no tools available, definitions will be empty list, which is handled
                 tools_def = self.tools.definitions if self.tools.definitions else None
                 response = await self.llm.complete(
                     messages=self.session.full_messages(),
                     tools=tools_def,
                 )
             except Exception as e:
-                yield StreamEvent("error", {"message": f"NVIDIA NIM completion error: {str(e)}"})
+                yield StreamEvent("error", {"message": f"LLM completion error: {str(e)}"})
                 yield StreamEvent("done", {
                     "session_id": self.session.id,
                     "rounds": round_num,
@@ -58,7 +74,7 @@ class TripCraftAgent:
                 })
                 return
 
-            # 5. Process tool calls (NVIDIA NIM only supports single tool-calls at once)
+            # 5. Process tool calls
             tc = msg.tool_calls[0]
             name = tc.function.name
             try:
@@ -73,12 +89,11 @@ class TripCraftAgent:
                 "step": round_num
             })
 
-            # Validate arguments to prevent fabrication of starting location/destination
+            # Validate arguments
             validation_error = _validate_args(name, args, self.session.messages)
             if validation_error:
                 result = {"error": validation_error}
             else:
-                # Call tool function (all tools are async)
                 result = await self.tools.execute(name, args)
 
             yield StreamEvent("tool_result", {
@@ -121,11 +136,9 @@ class TripCraftAgent:
 
 
 def _validate_args(name: str, args: dict, messages: list) -> str | None:
-    """Validate tool arguments against chat history and prevent date/origin fabrication.
-    
-    Returns an error message string if validation fails, or None if valid.
-    """
-    # 1. Date validation (must not be in the past, e.g. < 2026)
+    """Validate tool arguments — prevent past dates and fabricated origins."""
+
+    # 1. Date validation — reject dates before 2026
     date_params = ["check_in", "check_out", "departure_date", "return_date"]
     for param in date_params:
         if param in args and args[param]:
@@ -134,9 +147,13 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
             if match:
                 year = int(match.group(1))
                 if year < 2026:
-                    return f"Validation Error: The year in {param} '{val}' is {year}, which is in the past. The current year is 2026. Please use dates in 2026 or later."
+                    return (
+                        f"Validation Error: The year in {param} '{val}' is {year}, "
+                        f"which is in the past. The current year is 2026. "
+                        f"Please use dates in 2026 or later."
+                    )
 
-    # 2. Extract user messages to verify if origin/destination/dates/budget were discussed
+    # 2. Extract user messages for context
     user_msgs = [m["content"] for m in messages if m["role"] == "user"]
     user_text = " ".join(user_msgs).lower()
 
@@ -144,49 +161,29 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
     if name in ["search_flights", "search_transportation"]:
         origin = args.get("origin", "")
         if origin:
-            # Check if origin city name or major words of it are mentioned in user messages
             words = [w for w in re.findall(r"\b\w+\b", origin.lower()) if len(w) > 2]
             if not words or not any(w in user_text for w in words):
                 return (
                     "Validation Error: Starting location is missing or fabricated. "
                     "The user has not specified where they are starting/departing from. "
-                    "Please stop planning and ask the user explicitly: 'Where will you be starting your trip from?'"
+                    "Please stop and ask the user: 'Where will you be starting your trip from?'"
                 )
-
-    # 4. Mandatory Tier 1 Intake Check
-    if name in ["search_hotels", "search_flights", "search_transportation"]:
-        # Check dates
-        months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
-                  "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
-                  "tomorrow", "next week", "next month", "day", "date", "2026"]
-        has_dates = any(m in user_text for m in months) or any(char.isdigit() for char in user_text)
-        
-        # Check budget/currency
-        budget_keywords = ["budget", "money", "rupee", "inr", "usd", "dollar", "price", "cost", "₹", "$"]
-        has_budget = any(k in user_text for k in budget_keywords) or any(char.isdigit() for char in user_text)
-        
-        if not has_dates:
-            return (
-                "Validation Error: Travel dates/duration are missing in user inputs. "
-                "Please ask the user for their travel dates, month, or duration."
-            )
-        if not has_budget:
-            return (
-                "Validation Error: Budget and preferred currency are missing in user inputs. "
-                "Please ask the user for their budget and whether they prefer Rupees/INR or USD."
-            )
 
     return None
 
 
 def _summarize(name: str, result: dict) -> str:
-    """Human-readable one-liner for the SSE stream (not the full JSON)."""
+    """Human-readable one-liner for the SSE stream."""
     if "error" in result:
         return f"Error: {result['error']}"
 
     elif name == "search_flights":
         flights = result.get("flights", [])
         if flights:
+            # Prefer INR prices if available
+            inr_prices = [f.get("price_inr") for f in flights if f.get("price_inr")]
+            if inr_prices:
+                return f"{len(flights)} flights found (₹{min(inr_prices):,.0f}–₹{max(inr_prices):,.0f})"
             prices = [f["price"] for f in flights if "price" in f]
             if prices:
                 return f"{len(flights)} flights found (${min(prices):,.2f}–${max(prices):,.2f})"
@@ -202,6 +199,9 @@ def _summarize(name: str, result: dict) -> str:
     elif name == "search_hotels":
         hotels = result.get("hotels", [])
         if hotels:
+            inr_prices = [h.get("price_inr") for h in hotels if h.get("price_inr")]
+            if inr_prices:
+                return f"{len(hotels)} hotels found (₹{min(inr_prices):,.0f}–₹{max(inr_prices):,.0f}/night)"
             prices = [h["price_per_night"] for h in hotels if "price_per_night" in h]
             if prices:
                 return f"{len(hotels)} hotels found (${min(prices):,.2f}–${max(prices):,.2f}/night)"
