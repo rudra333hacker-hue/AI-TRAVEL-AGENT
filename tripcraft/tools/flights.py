@@ -5,6 +5,7 @@ import random
 import re
 from amadeus import Client
 from tripcraft.tools.geocode import geocode
+from tripcraft.tools.web_search import search_web
 
 logger = logging.getLogger("tripcraft")
 
@@ -180,7 +181,7 @@ class FlightSearch:
 
     async def _search_simulated(self, origin: str, destination: str, departure_date: str,
                                 return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
-        """Fallback: simulate realistic flight search using geocoded distance and real-world airline routes."""
+        """Fallback: simulate realistic flight search using geocoded distance, real-world airline routes, and web-searched fare data."""
         logger.info(f"Geocoding flight origin: {origin} and destination: {destination}")
         origin_loc = await geocode(origin)
         dest_loc = await geocode(destination)
@@ -196,9 +197,60 @@ class FlightSearch:
         )
 
         duration_hours = (distance / 800.0) + 0.6
-        base_price = 80.0 + (distance * 0.08)
+        
+        # --- WEB SEARCH FOR REAL FLIGHT PRICING (Google Web Scraper Fallback) ---
+        web_prices = []
+        found_carriers = []
+        try:
+            query = f"flights from {origin_loc['name']} to {dest_loc['name']} price {departure_date[:7]}"
+            logger.info(f"Web searching flights: {query}")
+            web_data = await search_web(query, max_results=5)
+            
+            snippets = [r.get("snippet", "") for r in web_data.get("results", [])]
+            combined = " ".join(snippets).lower()
+            
+            # Extract prices (e.g. ₹4500, Rs. 5000, 12000 INR)
+            price_matches = re.findall(r'(?:₹|rs\s*|inr\s*|rupees\s*|\$)(\d[\.\d]*)', combined, re.IGNORECASE)
+            # Filter matches to look like valid flight fares
+            web_prices = [float(p) for p in price_matches if 1500 < float(p) < 200000]
+            # Convert dollars if found as small numbers
+            dollar_prices = [float(p) for p in re.findall(r'\$(\d[\.\d]*)', combined) if 40 < float(p) < 2500]
+            for dp in dollar_prices:
+                web_prices.append(dp * 83)
+                
+            # Scan for airline names in snippets
+            known_airlines = {
+                "indigo": "IndiGo", "air india": "Air India", "spicejet": "SpiceJet",
+                "akasa": "Akasa Air", "vistara": "Vistara", "airasia": "AirAsia",
+                "delta": "Delta Air Lines", "united": "United Airlines", "american": "American Airlines",
+                "emirates": "Emirates", "qatar": "Qatar Airways", "singapore": "Singapore Airlines",
+                "lufthansa": "Lufthansa", "british": "British Airways", "air france": "Air France",
+                "ryanair": "Ryanair", "easyjet": "easyJet"
+            }
+            for key, val in known_airlines.items():
+                if key in combined:
+                    found_carriers.append({"name": val, "code": key[:2].upper()})
+        except Exception as e:
+            logger.warning(f"Web search for flight data failed: {e}")
 
-        carriers = get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
+        # Compute base price using web price references if found, else default to distance estimate
+        if web_prices:
+            avg_price_inr = sum(web_prices) / len(web_prices)
+            # Make sure it's per passenger in USD
+            base_price = (avg_price_inr / 83.0) / adults
+            logger.info(f"Using web-discovered base flight price: ₹{avg_price_inr/adults:.0f} per person (~${base_price:.2f})")
+            note_str = "Price range sourced from live web search"
+        else:
+            base_price = 80.0 + (distance * 0.08)
+            note_str = "Estimated price based on distance (Amadeus not configured)"
+
+        # Use found carriers if available, else get defaults
+        carriers = found_carriers if found_carriers else get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
+        if len(carriers) < 3:
+            default_options = get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
+            for d in default_options:
+                if d["name"] not in [c["name"] for c in carriers]:
+                    carriers.append(d)
 
         flights = []
         route_seed = sum(ord(c) for c in origin + destination)
@@ -240,7 +292,7 @@ class FlightSearch:
                 "price_inr": round(ticket_price * 83.0, 2),
                 "currency": "USD",
                 "booking_link": f"https://www.google.com/travel/flights?q=Flights%20to%20{dest_loc['name'].replace(' ', '%20')}%20from%20{origin_loc['name'].replace(' ', '%20')}%20on%20{departure_date}",
-                "note": "Estimated price based on distance (Amadeus not configured)",
+                "note": note_str,
             })
 
         return {"flights": flights}

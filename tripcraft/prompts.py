@@ -462,8 +462,8 @@ When generating the final plan, you MUST explicitly include all of the following
 12. Preferred local transport mode at destination (e.g. metro, taxi, walking, auto-rickshaw)
 
 **Accommodation & Stay (Clean Hotel Comparisons):**
-*Compare at least 2–3 specific hotel options found by the `search_hotels` tool. Always include the `booking_link` from the tool response as a clickable markdown link in the hotel table.*
-13. Hotel choices comparison (Compare budget vs comfortable hotel names, nightly rates, ratings, key amenities, and clickable booking links)
+*Compare at least 2–3 specific hotel options found by the `search_hotels` tool. Always include the `booking_link` and `maps_link` from the tool response as clickable markdown links in the hotel table.*
+13. Hotel choices comparison (Compare budget vs comfortable hotel names, nightly rates, ratings, key amenities, booking links `[Book](booking_link)`, and Google Maps links `[Map](maps_link)`)
 14. Hotel star rating / style (e.g., boutique, luxury, hostel, homestay)
 15. Hotel location / address
 16. Nightly rate per hotel
@@ -472,9 +472,9 @@ When generating the final plan, you MUST explicitly include all of the following
 
 **Day-by-Day Itinerary:**
 19. Daily schedule (divided into Morning, Afternoon, Evening, Night)
-20. Morning activity name & sneak-peek description
-21. Afternoon activity name & sneak-peek description
-22. Evening activity name & sneak-peek description
+20. Morning activity name & sneak-peek description (with Google Maps link `[Map](maps_link)` next to it if found in places tool result)
+21. Afternoon activity name & sneak-peek description (with Google Maps link `[Map](maps_link)` next to it if found)
+22. Evening activity name & sneak-peek description (with Google Maps link `[Map](maps_link)` next to it if found)
 23. Location/address of each activity (from places tool or web search)
 24. Travel style / vibe of the itinerary (e.g., adventurous, relaxing)
 

@@ -77,6 +77,7 @@ class PlaceSearch:
                                 "categories": cats,
                                 "address": loc_info.get("formatted_address") or loc_info.get("address") or "",
                                 "distance_meters": item.get("distance"),
+                                "maps_link": f"https://www.google.com/maps/search/?api=1&query={item.get('name', 'Unknown Place').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                             })
                         foursquare_success = True
                     else:
@@ -115,7 +116,8 @@ class PlaceSearch:
                         "name": name,
                         "categories": item["categories"],
                         "address": f"{rng.randint(1, 450)} Promenade Ave, {resolved_city_name}",
-                        "distance_meters": rng.randint(200, 3500)
+                        "distance_meters": rng.randint(200, 3500),
+                        "maps_link": f"https://www.google.com/maps/search/?api=1&query={name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                     })
 
             return {"places": places}
