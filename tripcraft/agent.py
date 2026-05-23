@@ -215,9 +215,6 @@ def _summarize(name: str, result: dict) -> str:
         places = result.get("places", [])
         return f"{len(places)} locations/attractions found"
 
-    elif name == "geocode":
-        return f"{result.get('name', '?')}, {result.get('country', '?')} ({result.get('latitude')}, {result.get('longitude')})"
-
     elif name == "search_web":
         count = result.get("result_count", 0)
         return f"Found {count} web results for '{result.get('query', '?')}'"

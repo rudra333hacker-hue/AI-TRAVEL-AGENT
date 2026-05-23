@@ -116,6 +116,7 @@ class HotelSearch:
                                 "currency": "USD",
                                 "booking_link": f"https://www.booking.com/searchresults.html?ss={item.get('name', 'Unknown Hotel').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                                 "maps_link": f"https://www.google.com/maps/search/?api=1&query={item.get('name', 'Unknown Hotel').replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
+                                "image_url": f"https://source.unsplash.com/featured/600x400/?{item.get('name', 'hotel').replace(' ', '+')}+hotel+{resolved_city_name.replace(' ', '+')}",
                                 "live_offer": True,
                                 "note": f"Retrieved via Foursquare. Estimated price for {days} night(s)."
                             })
@@ -163,6 +164,7 @@ class HotelSearch:
                         "currency": "USD",
                         "booking_link": f"https://www.booking.com/searchresults.html?ss={hotel_name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
                         "maps_link": f"https://www.google.com/maps/search/?api=1&query={hotel_name.replace(' ', '+')}+{resolved_city_name.replace(' ', '+')}",
+                        "image_url": f"https://source.unsplash.com/featured/600x400/?{hotel_name.replace(' ', '+')}+hotel+{resolved_city_name.replace(' ', '+')}",
                         "live_offer": False,
                         "note": f"Simulated lodging. Price estimated for {days} night(s)."
                     })

@@ -3,19 +3,28 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger("tripcraft")
 
-class LLMClient:
-    BASE_URL = "https://integrate.api.nvidia.com/v1"
+PROVIDER_LABELS = {
+    "nvidia": "NVIDIA NIM",
+    "aimlapi": "AIMLAPI (OpenAI-compatible)",
+}
 
+
+class LLMClient:
     def __init__(self, config):
         self.model = config.llm_model
+        self.provider = config.llm_provider
+        self.base_url = config.active_base_url
         self.client = AsyncOpenAI(
-            api_key=config.active_nvidia_key,
-            base_url=self.BASE_URL,
+            api_key=config.active_api_key,
+            base_url=self.base_url,
         )
-        logger.info(f"LLM initialized: {self.model} ({'premium key' if config.has_premium_model else 'default key'})")
+        logger.info(
+            f"LLM initialized: provider={PROVIDER_LABELS.get(self.provider, self.provider)}, "
+            f"model={self.model}, base_url={self.base_url}"
+        )
 
     async def complete(self, messages: list, tools: list | None = None):
-        """Send chat completion request to NVIDIA NIM."""
+        """Send chat completion request to the configured provider."""
         kwargs = {
             "model": self.model,
             "messages": messages,
@@ -32,8 +41,8 @@ class LLMClient:
 
     def status(self) -> dict:
         return {
-            "provider": "nvidia_nim",
+            "provider": PROVIDER_LABELS.get(self.provider, self.provider),
             "model": self.model,
-            "base_url": self.BASE_URL,
+            "base_url": self.base_url,
             "status": "connected",
         }

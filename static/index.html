@@ -407,6 +407,333 @@
             font-size: 9px;
         }
 
+        /* ── Branded Link Cards ── */
+        .link-card-booking {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 83, 159, 0.12);
+            color: #60a5fa;
+            border: 1px solid rgba(0, 83, 159, 0.3);
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 12px;
+            margin: 2px 4px 2px 0;
+            transition: all var(--transition-base);
+        }
+        .link-card-booking:hover {
+            background: linear-gradient(135deg, #003580, #0071c2);
+            color: #fff !important;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(0, 113, 194, 0.4);
+        }
+        [data-theme="light"] .link-card-booking {
+            background: rgba(0, 83, 159, 0.06);
+            color: #003580;
+            border-color: rgba(0, 83, 159, 0.2);
+        }
+
+        .link-card-maps {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 12px;
+            margin: 2px 4px 2px 0;
+            transition: all var(--transition-base);
+        }
+        .link-card-maps:hover {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff !important;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+        }
+        [data-theme="light"] .link-card-maps {
+            background: rgba(5, 150, 105, 0.06);
+            color: #059669;
+            border-color: rgba(5, 150, 105, 0.15);
+        }
+
+        .link-card-flight {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(139, 92, 246, 0.1);
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 12px;
+            margin: 2px 4px 2px 0;
+            transition: all var(--transition-base);
+        }
+        .link-card-flight:hover {
+            background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+            color: #fff !important;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+        }
+
+        /* ── Location Image Cards ── */
+        .location-image-card {
+            position: relative;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin: 14px 0;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            background: var(--bg-secondary);
+            max-width: 100%;
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+            cursor: pointer;
+        }
+        .location-image-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+        }
+        .location-image-card img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .location-image-card:hover img {
+            transform: scale(1.04);
+        }
+        .location-image-card .image-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 16px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.75));
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .location-image-card .image-caption .caption-icon {
+            margin-right: 6px;
+            font-size: 14px;
+        }
+
+        /* Image skeleton loader */
+        .location-image-card.loading img {
+            opacity: 0;
+        }
+        .location-image-card.loading::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 220px;
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: skeletonShimmer 1.5s infinite;
+        }
+        @keyframes skeletonShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* ── Interactive Place Grid ── */
+        .place-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 14px 0;
+        }
+        .place-card {
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+            cursor: pointer;
+            position: relative;
+        }
+        .place-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent-primary);
+        }
+        .place-card img {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            display: block;
+        }
+        .place-card .place-info {
+            padding: 10px 12px;
+        }
+        .place-card .place-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .place-card .place-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .place-card .place-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--accent-secondary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .place-card .place-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Cuisine / Restaurant Cards ── */
+        .cuisine-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            margin: 14px 0;
+        }
+        .cuisine-card {
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+            cursor: pointer;
+        }
+        .cuisine-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent-primary);
+        }
+        .cuisine-card img {
+            width: 100%;
+            height: 130px;
+            object-fit: cover;
+            display: block;
+        }
+        .cuisine-card .cuisine-info {
+            padding: 10px 12px;
+        }
+        .cuisine-card .cuisine-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        .cuisine-card .cuisine-restaurant {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .cuisine-card .cuisine-price {
+            font-size: 11px;
+            color: var(--accent-secondary);
+            font-weight: 600;
+        }
+
+        /* ── Lightbox for images ── */
+        .lightbox-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .lightbox-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .lightbox-overlay img {
+            max-width: 90vw;
+            max-height: 85vh;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .lightbox-overlay .lightbox-close {
+            position: absolute;
+            top: 20px; right: 20px;
+            font-size: 32px;
+            color: #fff;
+            cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .lightbox-overlay .lightbox-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* ── Follow-up Chips ── */
+        .followup-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border-light);
+        }
+        .followup-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 24px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--accent-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            text-decoration: none;
+        }
+        .followup-chip:hover {
+            background: var(--accent-gradient);
+            color: #fff;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px var(--accent-glow-strong);
+        }
+        .followup-chip:active {
+            transform: translateY(0) scale(0.96);
+        }
+        [data-theme="light"] .followup-chip {
+            background: #f0f0ff;
+            border-color: rgba(79, 70, 229, 0.15);
+            color: #4f46e5;
+        }
+
         /* ── Tool call logs ── */
         .tool-event {
             margin-bottom: 10px;
@@ -754,6 +1081,43 @@
             border-radius: var(--radius-md);
             border: 1px solid var(--border);
             box-shadow: var(--shadow-sm);
+            position: relative;
+            background: var(--bg-card);
+            transition: box-shadow var(--transition-base);
+        }
+        .table-container:hover {
+            box-shadow: var(--shadow-md);
+            border-color: rgba(99, 102, 241, 0.25);
+        }
+        
+        /* Scroll shadow indicator for overflow tables */
+        .table-container::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0;
+            width: 32px;
+            background: linear-gradient(to right, transparent, var(--bg-card));
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+        }
+        .table-container.is-scrollable::after {
+            opacity: 1;
+        }
+        
+        .table-container.is-scrollable::-webkit-scrollbar {
+            height: 5px;
+        }
+        .table-container.is-scrollable::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .table-container.is-scrollable::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+        .table-container.is-scrollable::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-primary);
         }
         
         .bubble table {
@@ -762,14 +1126,29 @@
             font-size: 13px;
             text-align: left;
             background: var(--bg-card);
+            border-radius: var(--radius-md);
+            overflow: hidden;
         }
         
         .bubble th {
-            background: var(--bg-secondary);
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
             color: var(--text-primary);
             font-weight: 700;
-            padding: 10px 14px;
-            border-bottom: 2px solid var(--border);
+            padding: 11px 14px;
+            border-bottom: 2px solid var(--accent-primary);
+            font-size: 12px;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        
+        /* First column (transport mode / hotel name) gets accent styling */
+        .bubble th:first-child {
+            border-top-left-radius: var(--radius-md);
+            color: var(--accent-secondary);
+        }
+        .bubble th:last-child {
+            border-top-right-radius: var(--radius-md);
         }
         
         .bubble td {
@@ -777,15 +1156,90 @@
             border-bottom: 1px solid var(--border-light);
             color: var(--text-secondary);
             line-height: 1.5;
+            transition: all var(--transition-fast);
         }
         
         .bubble tr:last-child td {
             border-bottom: none;
         }
         
+        /* Row hover with animated highlight */
+        .bubble tr {
+            transition: background var(--transition-base);
+        }
         .bubble tr:hover td {
-            background: rgba(99, 102, 241, 0.03);
+            background: rgba(99, 102, 241, 0.05);
             color: var(--text-primary);
+        }
+        
+        /* Staggered row entrance animation */
+        .bubble tbody tr {
+            animation: rowSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .bubble tbody tr:nth-child(1) { animation-delay: 0.02s; }
+        .bubble tbody tr:nth-child(2) { animation-delay: 0.06s; }
+        .bubble tbody tr:nth-child(3) { animation-delay: 0.10s; }
+        .bubble tbody tr:nth-child(4) { animation-delay: 0.14s; }
+        .bubble tbody tr:nth-child(5) { animation-delay: 0.18s; }
+        .bubble tbody tr:nth-child(6) { animation-delay: 0.22s; }
+        .bubble tbody tr:nth-child(7) { animation-delay: 0.26s; }
+        .bubble tbody tr:nth-child(8) { animation-delay: 0.30s; }
+        .bubble tbody tr:nth-child(n+9) { animation-delay: 0.34s; }
+        @keyframes rowSlideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* Price column styling */
+        .bubble td:nth-last-child(-n+2) {
+            font-weight: 600;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            white-space: nowrap;
+            color: var(--accent-secondary);
+        }
+        
+        /* Cheapest/best-value row highlight */
+        .bubble tr.cheapest td {
+            background: rgba(16, 185, 129, 0.06);
+            border-left: 3px solid var(--success);
+            position: relative;
+        }
+        .bubble tr.cheapest td:first-child::before {
+            content: '🏆 ';
+        }
+        .bubble tr.cheapest:hover td {
+            background: rgba(16, 185, 129, 0.1);
+        }
+        
+        /* Badge inside cells */
+        .table-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        .table-badge.budget { background: rgba(16, 185, 129, 0.12); color: #34d399; }
+        .table-badge.mid { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+        .table-badge.premium { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
+        .table-badge.cheapest { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        
+        /* Comparison table special variant */
+        .table-container.comparison-table {
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        .table-container.comparison-table th {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.06));
+        }
+        
+        /* Responsive table text */
+        @media (max-width: 480px) {
+            .bubble table { font-size: 12px; }
+            .bubble th { padding: 8px 10px; font-size: 11px; }
+            .bubble td { padding: 8px 10px; }
+            .bubble td:nth-last-child(-n+2) { font-size: 11px; }
         }
 
         /* ── Responsive ── */
@@ -803,6 +1257,7 @@
             .suggestion { padding: 12px 16px; font-size: 13px; }
             .chat-area { padding: 20px 16px 8px; }
             .input-area { padding: 12px 16px; }
+            .location-image-card img { height: 180px; }
         }
 
         /* Mobile */
@@ -844,6 +1299,9 @@
             .welcome p { font-size: 14px; margin-bottom: 20px; }
             .suggestions { grid-template-columns: 1fr; }
             .suggestion { padding: 12px 16px; }
+            
+            .location-image-card img { height: 160px; }
+            .followup-chip { font-size: 12px; padding: 7px 12px; }
         }
 
         /* Small mobile */
@@ -921,6 +1379,12 @@
         </div>
     </div>
 
+    <!-- Lightbox -->
+    <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox()">
+        <div class="lightbox-close" onclick="closeLightbox()">&times;</div>
+        <img src="" alt="Lightbox image" id="lightboxImg">
+    </div>
+
     <script>
         'use strict';
 
@@ -930,7 +1394,6 @@
         const API_BASE = window.location.origin;
 
         const TOOL_ICONS = {
-            'geocode': '🌍',
             'search_flights': '✈️',
             'search_transportation': '🚗',
             'search_hotels': '🏨',
@@ -995,6 +1458,13 @@
             }
         }
 
+        // ── Follow-up chip handler ──
+        function handleFollowup(message) {
+            if (isStreaming) return;
+            document.getElementById('userInput').value = message;
+            sendMessage();
+        }
+
         // ── DOM helpers (global for inline onclick handlers) ──
         function useSuggestion(el) {
             document.getElementById('userInput').value = el.getAttribute('data-message');
@@ -1022,6 +1492,26 @@
                 <div class="bubble">${html}</div>
             `;
             chat.appendChild(div);
+
+            // Initialize lazy-loaded images
+            div.querySelectorAll('.location-image-card.loading').forEach(card => {
+                const img = card.querySelector('img');
+                if (img) {
+                    img.onload = () => card.classList.remove('loading');
+                    img.onerror = () => {
+                        card.classList.remove('loading');
+                        img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" fill="%23141923"><rect width="600" height="400"/><text x="300" y="200" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="16">📸 Image unavailable</text></svg>');
+                    };
+                }
+            });
+
+            // Detect scrollable tables and add shadow indicator
+            div.querySelectorAll('.table-container').forEach(container => {
+                if (container.scrollWidth > container.clientWidth) {
+                    container.classList.add('is-scrollable');
+                }
+            });
+
             scrollToBottom();
             return div;
         }
@@ -1067,6 +1557,20 @@
             if (el) el.remove();
         }
 
+        // ── Lightbox ──
+        function openLightbox(src) {
+            const lb = document.getElementById('lightbox');
+            const img = document.getElementById('lightboxImg');
+            img.src = src;
+            lb.classList.add('active');
+        }
+        window.closeLightbox = function() {
+            document.getElementById('lightbox').classList.remove('active');
+        };
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeLightbox();
+        });
+
         // ── Markdown ──
         function formatMarkdown(text) {
             let html = text
@@ -1100,8 +1604,25 @@
                             cells.map(c => `<th>${c}</th>`).join('') + 
                             '</tr></thead><tbody>';
                     } else {
-                        tableHTML += '<tr>' + 
-                            cells.map(c => `<td>${c}</td>`).join('') + 
+                        // Process each cell: detect cheapest rows, badges, emoji prefixes
+                        let isCheapest = false;
+                        let processedCells = cells.map(c => {
+                            // Detect 🏆 badge → mark row as cheapest
+                            if (c.includes('🏆')) {
+                                isCheapest = true;
+                                c = c.replace(/🏆/g, '').trim();
+                            }
+                            // Detect price/value badges and wrap in styled spans
+                            c = c.replace(/\b(Budget)\b/g, '<span class="table-badge budget">$1</span>');
+                            c = c.replace(/\b(Mid[ -]?range|Medium|Standard)\b/gi, '<span class="table-badge mid">$1</span>');
+                            c = c.replace(/\b(Premium|Luxury|Deluxe)\b/gi, '<span class="table-badge premium">$1</span>');
+                            c = c.replace(/\b(Cheapest|Best Value|Best Deal)\b/gi, '<span class="table-badge cheapest">$1</span>');
+                            // Wrap all currency amounts with visual emphasis
+                            c = c.replace(/([₹$€£]\s*[\d,]+(?:\.\d{2})?)/g, '<strong style="color:var(--accent-secondary);font-family:var(--font-mono)">$1</strong>');
+                            return c;
+                        });
+                        tableHTML += '<tr' + (isCheapest ? ' class="cheapest"' : '') + '>' + 
+                            processedCells.map(c => `<td>${c}</td>`).join('') + 
                             '</tr>';
                     }
                 } else {
@@ -1132,8 +1653,58 @@
             html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
 
-            // Links: [text](url) -> <a href="url" target="_blank" class="chat-link">text <span class="link-icon">↗</span></a>
-            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1 <span class="link-icon">↗</span></a>');
+            // Images: ![alt](url) → premium image card with lazy loading + lightbox
+            html = html.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s\)]+)\)/g, function(match, alt, url) {
+                // Extract icon from alt text if present (e.g. "📸 Place Name" → icon=📸, caption=Place Name)
+                let icon = '';
+                let caption = alt;
+                const emojiMatch = alt.match(/^([\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{200D}\u{2702}-\u{27B0}]+)\s*(.*)/u);
+                if (emojiMatch) {
+                    icon = emojiMatch[1];
+                    caption = emojiMatch[2] || alt;
+                }
+                return `<div class="location-image-card loading" onclick="openLightbox('${url}')">
+                    <img src="${url}" alt="${caption}" loading="lazy" onload="this.parentElement.classList.remove('loading')" onerror="this.onerror=null;this.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"400\" fill=\"%23141923\"><rect width=\"600\" height=\"400\"/><text x=\"300\" y=\"200\" text-anchor=\"middle\" fill=\"%2364748b\" font-family=\"sans-serif\" font-size=\"16\">📸 Image unavailable</text></svg>');this.parentElement.classList.remove('loading')">
+                    <div class="image-caption">${icon ? '<span class="caption-icon">' + icon + '</span>' : ''}${caption}</div>
+                </div>`;
+            });
+
+            // Follow-up chips: [text](followup:message) → clickable chip buttons
+            // Also support inline text chips like [🍽️ Deep dive into food](followup:Tell me about the food)
+            let followupChips = [];
+            html = html.replace(/\[([^\]]+)\]\(followup:([^\)]+)\)/g, function(match, label, message) {
+                followupChips.push({ label, message });
+                return ''; // Remove from inline text — we'll append at end
+            });
+
+            // Enhanced link detection for hotels, transport, maps, restaurants
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, function(match, text, url) {
+                let cardClass = 'chat-link';
+                let icon = '↗';
+
+                // Hotel booking sites
+                if (/booking\.com|hotels\.com|airbnb\.|agoda\.|expedia\.|makemytrip\.com.*hotel|goibibo\.com.*hotel|trivago\.|trip\.com|oyo|hostelworld/i.test(url)) {
+                    cardClass = 'link-card-booking';
+                    icon = '🏨';
+                }
+                // Google Maps / location links
+                else if (/google\.com\/maps|maps\.google|goo\.gl\/maps|mapy\.cz|openstreetmap/i.test(url)) {
+                    cardClass = 'link-card-maps';
+                    icon = '📍';
+                }
+                // Transport / flights / trains / buses
+                else if (/google\.com\/travel\/flights|skyscanner|kayak|ixigo|redbus|irctc|makemytrip\.com.*railways|makemytrip\.com.*bus|goibibo\.com.*bus|redbus|flixbus|trainline|amtrak|raileurope|omio|blablacar/i.test(url)) {
+                    cardClass = 'link-card-flight';
+                    icon = '✈️';
+                }
+                // Restaurant / food links
+                else if (/zomato|swiggy|ubereats|doordash|foodpanda|yelp\.|tripadvisor.*restaurant|eazydiner|dineout|tableall|resy|opentable/i.test(url)) {
+                    cardClass = 'chat-link';
+                    icon = '🍽️';
+                }
+
+                return `<a href="${url}" target="_blank" rel="noopener" class="${cardClass}">${icon} ${text}</a>`;
+            });
 
             // Bold & italic
             html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
@@ -1168,6 +1739,17 @@
             // Wrap in <p> if not starting with a block element
             if (!/^\s*<(?:h[1-4]|ul|ol|pre|blockquote|hr|p|div)/i.test(html)) {
                 html = '<p>' + html + '</p>';
+            }
+
+            // Append follow-up chips at the end if any were collected
+            if (followupChips.length > 0) {
+                let chipsHTML = '<div class="followup-container">';
+                for (const chip of followupChips) {
+                    const safeMsg = chip.message.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    chipsHTML += `<button class="followup-chip" onclick="handleFollowup('${safeMsg}')">${chip.label}</button>`;
+                }
+                chipsHTML += '</div>';
+                html += chipsHTML;
             }
 
             return html;

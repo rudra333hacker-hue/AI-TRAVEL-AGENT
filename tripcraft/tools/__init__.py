@@ -1,6 +1,6 @@
 import logging
 from typing import Any
-from tripcraft.tools import flights, hotels, weather, places, geocode, transportation, web_search
+from tripcraft.tools import flights, hotels, weather, places, transportation, web_search
 
 logger = logging.getLogger("tripcraft")
 
@@ -12,7 +12,6 @@ class ToolRegistry:
 
         # Always available (transportation and weather have fallback/keyless options)
         self._register("get_weather_forecast", weather.get_weather_forecast, weather.DEFINITION)
-        self._register("geocode", geocode.geocode, geocode.DEFINITION)
         self._register("search_transportation", transportation.search, transportation.DEFINITION)
         self._register("search_web", web_search.search_web, web_search.DEFINITION)
 
@@ -53,10 +52,6 @@ class ToolRegistry:
     def status(self) -> dict:
         return {
             "get_weather_forecast": {
-                "status": "available",
-                "provider": "open-meteo"
-            },
-            "geocode": {
                 "status": "available",
                 "provider": "open-meteo"
             },
