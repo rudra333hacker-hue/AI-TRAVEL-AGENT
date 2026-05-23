@@ -1,3 +1,4 @@
+import asyncio
 import math
 import logging
 import random
@@ -14,21 +15,16 @@ async def _fetch_real_transport_data(origin: str, destination: str, departure_da
     Returns a dict with optional 'flight', 'train', 'bus', 'car' keys + '_source'.
     Falls back gracefully to empty dict if search fails."""
     try:
-        # Search for bus and train info on this specific route
-        search_queries = [
-            f"{origin} to {destination} bus fare price {departure_date[:4]}",
-            f"{origin} to {destination} train fare schedule",
-        ]
-
         results = {"_source": "web"}
         prices_found = 0
 
-        for query in search_queries:
-            logger.info(f"Web searching transport: {query}")
+        async def fetch_and_parse(query: str, mode: str):
+            nonlocal prices_found
+            logger.info(f"Web searching transport concurrent: {query}")
             try:
                 web_data = await search_web(query, max_results=5)
             except Exception:
-                continue
+                return
 
             snippets = [r.get("snippet", "") for r in web_data.get("results", [])]
             combined = " ".join(snippets).lower()
@@ -48,41 +44,46 @@ async def _fetch_real_transport_data(origin: str, destination: str, departure_da
                     if len(w) > 3 and w[0].isupper() and not w.startswith("Http") and not w.startswith("www"):
                         operators.append(w.strip(",.;:()[]\"'"))
 
-            if "bus" in query and prices:
+            if prices:
                 avg_price = sum(prices) / len(prices)
                 op = list(dict.fromkeys(operators))[:3]
-                results["bus"] = {
-                    "mode": "Bus",
-                    "provider": ", ".join(op) if op else "Intercity Bus Services",
-                    "duration": f"~{max(1, int(distance_km / 70))}h {int((distance_km / 70) % 1 * 60)}m",
-                    "price_usd": round(avg_price / 83, 2),  # Convert INR to USD for internal consistency
-                    "price_inr": round(avg_price),
-                    "booking_link": f"https://www.google.com/search?q=bus+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
-                    "viability": "Cheapest option — real prices from web",
-                    "note": f"Live web result: ~₹{round(avg_price)} per person. Multiple operators available.",
-                    "data_source": "web_search"
-                }
-                if op:
-                    results["bus"]["provider"] = ", ".join(op[:3])
-                prices_found += 1
+                if mode == "bus":
+                    results["bus"] = {
+                        "mode": "Bus",
+                        "provider": ", ".join(op) if op else "Intercity Bus Services",
+                        "duration": f"~{max(1, int(distance_km / 70))}h {int((distance_km / 70) % 1 * 60)}m",
+                        "price_usd": round(avg_price / 83, 2),
+                        "price_inr": round(avg_price),
+                        "booking_link": f"https://www.google.com/search?q=bus+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
+                        "viability": "Cheapest option — real prices from web",
+                        "note": f"Live web result: ~₹{round(avg_price)} per person. Multiple operators available.",
+                        "data_source": "web_search"
+                    }
+                    if op:
+                        results["bus"]["provider"] = ", ".join(op[:3])
+                    prices_found += 1
+                elif mode == "train":
+                    results["train"] = {
+                        "mode": "Train",
+                        "provider": ", ".join(op) if op else "Indian Railways / National Rail",
+                        "duration": f"~{max(1, int(distance_km / 110))}h {int((distance_km / 110) % 1 * 60)}m",
+                        "price_usd": round(avg_price / 83, 2),
+                        "price_inr": round(avg_price),
+                        "booking_link": f"https://www.google.com/search?q=train+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
+                        "viability": "Most comfortable & scenic — real prices from web",
+                        "note": f"Live web result: ~₹{round(avg_price)} per person.",
+                        "data_source": "web_search"
+                    }
+                    if op:
+                        results["train"]["provider"] = ", ".join(op[:3])
+                    prices_found += 1
 
-            if "train" in query and prices:
-                avg_price = sum(prices) / len(prices)
-                op = list(dict.fromkeys(operators))[:3]
-                results["train"] = {
-                    "mode": "Train",
-                    "provider": ", ".join(op) if op else "Indian Railways / National Rail",
-                    "duration": f"~{max(1, int(distance_km / 110))}h {int((distance_km / 110) % 1 * 60)}m",
-                    "price_usd": round(avg_price / 83, 2),
-                    "price_inr": round(avg_price),
-                    "booking_link": f"https://www.google.com/search?q=train+booking+from+{origin.replace(' ', '+')}+to+{destination.replace(' ', '+')}",
-                    "viability": "Most comfortable & scenic — real prices from web",
-                    "note": f"Live web result: ~₹{round(avg_price)} per person.",
-                    "data_source": "web_search"
-                }
-                if op:
-                    results["train"]["provider"] = ", ".join(op[:3])
-                prices_found += 1
+        # Launch searches concurrently
+        queries = [
+            (f"{origin} to {destination} bus fare price {departure_date[:4]}", "bus"),
+            (f"{origin} to {destination} train fare schedule", "train")
+        ]
+        await asyncio.gather(*(fetch_and_parse(q, m) for q, m in queries))
 
         if prices_found > 0:
             logger.info(f"Found real transport data for {prices_found} modes")
@@ -130,9 +131,11 @@ async def search(origin: str, destination: str, departure_date: str,
     try:
         geo_warning = None
         try:
-            # Geocode origin and destination
-            origin_loc = await geocode(origin)
-            dest_loc = await geocode(destination)
+            # Geocode origin and destination concurrently
+            origin_loc, dest_loc = await asyncio.gather(
+                geocode(origin),
+                geocode(destination)
+            )
 
             if "error" in origin_loc or "error" in dest_loc:
                 raise ValueError("Geocoding returned error")

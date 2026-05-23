@@ -22,7 +22,7 @@ async def request_with_retry(
             async with httpx.AsyncClient() as client:
                 # Set default timeout if not provided
                 if "timeout" not in kwargs:
-                    kwargs["timeout"] = 10.0
+                    kwargs["timeout"] = 4.0
                 
                 response = await client.request(method, url, **kwargs)
                 

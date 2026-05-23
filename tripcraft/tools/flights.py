@@ -90,8 +90,11 @@ class FlightSearch:
     async def _search_amadeus(self, origin: str, destination: str, departure_date: str,
                                return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
         """Search flights using the Amadeus Flight Offers Search API."""
-        origin_code = await self._resolve_airport_code(origin)
-        dest_code = await self._resolve_airport_code(destination)
+        # Resolve origin and destination codes concurrently
+        origin_code, dest_code = await asyncio.gather(
+            self._resolve_airport_code(origin),
+            self._resolve_airport_code(destination)
+        )
 
         if not origin_code or not dest_code:
             return {"flights": []}
@@ -170,8 +173,10 @@ class FlightSearch:
                                 return_date: str = None, adults: int = 1, max_results: int = 3) -> dict:
         """Fallback: simulate flight search using geocoding, airline routes, and web search."""
         try:
-            origin_loc = await geocode(origin)
-            dest_loc = await geocode(destination)
+            origin_loc, dest_loc = await asyncio.gather(
+                geocode(origin),
+                geocode(destination)
+            )
             if "error" in origin_loc or "error" in dest_loc:
                 raise ValueError("Geocoding failed")
             distance = haversine_distance(
