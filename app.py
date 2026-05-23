@@ -26,7 +26,7 @@ logger = logging.getLogger("tripcraft")
 
 class LocalAgentConfig:
     LLM_PROVIDER = "nvidia"
-    NVIDIA_MODEL = "moonshotai/kimi-k2.6"
+    NVIDIA_MODEL = "meta/llama-3.1-70b-instruct"
     NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 @asynccontextmanager

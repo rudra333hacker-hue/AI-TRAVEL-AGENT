@@ -46,17 +46,20 @@ class LLMClient:
             "messages": messages,
             "temperature": 0.6,
             "max_tokens": 4096,
+            "timeout": 15.0,
         }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
             if self.provider == "nvidia":
-                kwargs["parallel_tool_calls"] = False
+                kwargs["parallel_tool_calls"] = True
 
         retries = 6
         delay = 1.0
         backoff_factor = 2.0
         last_exc = None
+
+        keys_tried_in_row = 0
 
         for attempt in range(1, retries + 1):
             client = self.clients[self.current_client_idx]
@@ -72,6 +75,8 @@ class LLMClient:
                     or "rate limit" in err_str 
                     or "500" in err_str 
                     or "timeout" in err_str 
+                    or "timed out" in err_str
+                    or "timedout" in err_str
                     or "503" in err_str
                     or "busy" in err_str
                     or "403" in err_str
@@ -88,15 +93,23 @@ class LLMClient:
                 if len(self.clients) > 1:
                     old_idx = self.current_client_idx
                     self.current_client_idx = (self.current_client_idx + 1) % len(self.clients)
+                    keys_tried_in_row += 1
                     logger.warning(
                         f"LLM call failed (attempt {attempt}/{retries}): {e}. "
                         f"Rotating from key index {old_idx} to index {self.current_client_idx}."
                     )
+                    
+                    # If we haven't tried all keys yet in this failure burst, retry immediately (no sleep)!
+                    if keys_tried_in_row < len(self.clients):
+                        logger.info("Retrying next key index immediately...")
+                        continue
 
+                # If all keys failed or we only have one key, perform backoff sleep
+                keys_tried_in_row = 0
                 wait_time = delay * (backoff_factor ** (attempt - 1))
                 reason = "rate limited / auth error" if ("429" in err_str or "rate limit" in err_str or "403" in err_str or "401" in err_str) else "transient error"
                 logger.warning(
-                    f"Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
+                    f"All keys tried or rate-limited. Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
                 )
                 # Notify caller so it can surface status to the user
                 if on_retry:

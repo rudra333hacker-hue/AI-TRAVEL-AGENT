@@ -466,26 +466,33 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
         if is_greeting(text_content):
             return False, None
 
+    # Extract clean text from latest user message for intent detection
+    latest_text = ""
+    if isinstance(last_user_content, str):
+        latest_text = last_user_content.lower()
+    elif isinstance(last_user_content, list):
+        latest_text = " ".join([p.get("text", "") for p in last_user_content if isinstance(p, dict) and p.get("type") == "text"]).lower()
+
     state = extract_tier1_from_messages(messages)
 
     # If complete, let the LLM handle it
     if state.is_complete:
         return False, None
 
-    # First message: intercept if 3+ fields missing
+    # First message: only intercept if they are explicitly asking for a trip/planning
+    # AND they have almost all fields missing.
     if n_user == 1:
-        if len(state.missing_fields) >= 3:
+        # Check for trip planning intent keywords
+        intent_keywords = ["plan", "trip", "travel", "itinerary", "vacation", "holiday", "visit", "go to", "tour"]
+        has_intent = any(kw in latest_text for kw in intent_keywords)
+        
+        # Also check if they triggered one of our followup suggestions (which contain 'followup:')
+        is_followup_chip = "followup:" in latest_text or "starting from" in latest_text or "want to go" in latest_text
+        
+        if (has_intent or is_followup_chip) and len(state.missing_fields) >= 4:
             is_first = True
             question = build_tier1_question(state, is_first)
             return True, question
-        # Partial data — let the smart LLM handle the remaining questions
-        return False, None
 
-    # Subsequent messages: intercept if 2+ critical fields still missing
-    missing = state.missing_fields
-    critical_missing = [f for f in missing if f in ("origin", "destination", "budget", "dates")]
-    if len(critical_missing) >= 2:
-        question = build_tier1_question(state, is_first_message=False)
-        return True, question
-
+    # Subsequent messages: never intercept, let the highly intelligent LLM converse naturally!
     return False, None
