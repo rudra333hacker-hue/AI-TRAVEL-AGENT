@@ -127,26 +127,27 @@ async def search(origin: str, destination: str, departure_date: str,
 
     logger.info(f"Comparing transportation options from {origin} to {destination}")
 
-    geo_warning = None
     try:
-        # Geocode origin and destination
-        origin_loc = await geocode(origin)
-        dest_loc = await geocode(destination)
+        geo_warning = None
+        try:
+            # Geocode origin and destination
+            origin_loc = await geocode(origin)
+            dest_loc = await geocode(destination)
 
-        if "error" in origin_loc or "error" in dest_loc:
-            raise ValueError("Geocoding returned error")
+            if "error" in origin_loc or "error" in dest_loc:
+                raise ValueError("Geocoding returned error")
 
-        # Calculate distance
-        distance = haversine_distance(
-            origin_loc["latitude"], origin_loc["longitude"],
-            dest_loc["latitude"], dest_loc["longitude"]
-        )
-    except Exception as geocode_err:
-        logger.warning(f"Geocoding failed in transport search: {geocode_err}. Using default route coords.")
-        origin_loc = {"name": origin, "latitude": 19.0760, "longitude": 72.8777}
-        dest_loc = {"name": destination, "latitude": 15.4919, "longitude": 73.8278}
-        distance = 500.0
-        geo_warning = f"Could not geocode cities '{origin}' or '{destination}' to retrieve exact coordinates. Displaying estimates for a standard 500km route."
+            # Calculate distance
+            distance = haversine_distance(
+                origin_loc["latitude"], origin_loc["longitude"],
+                dest_loc["latitude"], dest_loc["longitude"]
+            )
+        except Exception as geocode_err:
+            logger.warning(f"Geocoding failed in transport search: {geocode_err}. Using default route coords.")
+            origin_loc = {"name": origin, "latitude": 19.0760, "longitude": 72.8777}
+            dest_loc = {"name": destination, "latitude": 15.4919, "longitude": 73.8278}
+            distance = 500.0
+            geo_warning = f"Could not geocode cities '{origin}' or '{destination}' to retrieve exact coordinates. Displaying estimates for a standard 500km route."
 
         options = []
         route_seed = sum(ord(c) for c in origin + destination)
@@ -240,7 +241,6 @@ async def search(origin: str, destination: str, departure_date: str,
                 "viability": "Best for flexibility & groups" if distance <= 500 else "Tiring for solo drivers",
                 "note": "Price is for the entire vehicle (split friendly!). Includes fuel estimate."
             })
-
 
         result = {
             "origin": origin_loc["name"],
