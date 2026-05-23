@@ -39,16 +39,17 @@ async def lifespan(app: FastAPI):
         config.llm_provider = LocalAgentConfig.LLM_PROVIDER
         config.llm_model = LocalAgentConfig.NVIDIA_MODEL
         config.active_base_url = LocalAgentConfig.NVIDIA_BASE_URL
-        # Set active_api_key accordingly
-        config.nvidia_key = os.getenv("NVIDIA_API_KEY", "")
-        config.nvidia_key_2 = os.getenv("NVIDIA_API_KEY_2", "")
-        config.nvidia_key_3 = os.getenv("NVIDIA_API_KEY_3", "")
-        config.nvidia_key_4 = os.getenv("NVIDIA_API_KEY_4", "")
-        config.nvidia_keys_list = [
-            k for k in [config.nvidia_key, config.nvidia_key_2, config.nvidia_key_3, config.nvidia_key_4]
-            if k and k.strip()
-        ]
-        config.nvidia_keys_list = list(dict.fromkeys(config.nvidia_keys_list))
+        # Set active_api_key and load fallbacks accordingly (up to 10 keys)
+        config.nvidia_keys_list = []
+        for suffix in ["", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9", "_10"]:
+            val = os.getenv(f"NVIDIA_API_KEY{suffix}")
+            if val and val.strip() and val not in config.nvidia_keys_list:
+                config.nvidia_keys_list.append(val)
+
+        config.nvidia_key = config.nvidia_keys_list[0] if config.nvidia_keys_list else ""
+        config.nvidia_key_2 = config.nvidia_keys_list[1] if len(config.nvidia_keys_list) > 1 else ""
+        config.nvidia_key_3 = config.nvidia_keys_list[2] if len(config.nvidia_keys_list) > 2 else ""
+        config.nvidia_key_4 = config.nvidia_keys_list[3] if len(config.nvidia_keys_list) > 3 else ""
         config.active_api_key = config.nvidia_key
     except RuntimeError as e:
         logger.error(f"Configuration initialization failed: {e}")
