@@ -75,10 +75,17 @@ class SessionManager:
         """Background coroutine to periodically evict expired idle sessions."""
         while True:
             await asyncio.sleep(interval)
-            async with self._lock:
-                expired = [
-                    sid for sid, s in self._store.items()
-                    if s.is_expired(self._ttl)
-                ]
-                for sid in expired:
-                    del self._store[sid]
+            try:
+                async with self._lock:
+                    expired = [
+                        sid for sid, s in self._store.items()
+                        if s.is_expired(self._ttl)
+                    ]
+                    for sid in expired:
+                        del self._store[sid]
+                    if expired:
+                        import logging
+                        logging.getLogger("tripcraft").info(f"Evicted {len(expired)} expired session(s).")
+            except Exception as e:
+                import logging
+                logging.getLogger("tripcraft").error(f"Session cleanup error (non-fatal): {e}")

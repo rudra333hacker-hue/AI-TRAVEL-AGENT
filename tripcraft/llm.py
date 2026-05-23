@@ -24,8 +24,14 @@ class LLMClient:
             f"model={self.model}, base_url={self.base_url}"
         )
 
-    async def complete(self, messages: list, tools: list | None = None):
-        """Send chat completion request to the configured provider with retries for transient errors."""
+    async def complete(self, messages: list, tools: list | None = None, on_retry=None):
+        """Send chat completion request to the configured provider with retries for transient errors.
+        
+        Args:
+            messages: The list of messages to send.
+            tools: Optional list of tool definitions.
+            on_retry: Optional async callable(attempt, wait_time, reason) invoked before each retry sleep.
+        """
         kwargs = {
             "model": self.model,
             "messages": messages,
@@ -65,14 +71,22 @@ class LLMClient:
                     raise e
 
                 wait_time = delay * (backoff_factor ** (attempt - 1))
+                reason = "rate limited" if ("429" in err_str or "rate limit" in err_str) else "transient error"
                 logger.warning(
-                    f"LLM rate-limited/transient error: {e}. "
+                    f"LLM {reason}: {e}. "
                     f"Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
                 )
+                # Notify caller so it can surface status to the user
+                if on_retry:
+                    try:
+                        await on_retry(attempt, wait_time, reason)
+                    except Exception:
+                        pass
                 await asyncio.sleep(wait_time)
 
         if last_exc:
             raise last_exc
+
 
     async def close(self):
         await self.client.close()

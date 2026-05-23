@@ -23,12 +23,10 @@ class ToolRegistry:
         hotels_tool = hotels.HotelSearch(config)
         self._register("search_hotels", hotels_tool.search, generate_tool_schema(hotels_tool.search, "search_hotels"))
 
-        # Conditional on API keys
-        if config.has_foursquare:
-            places_tool = places.PlaceSearch(config)
-            self._register("search_places", places_tool.search, generate_tool_schema(places_tool.search, "search_places"))
-        else:
-            logger.warning("Foursquare API key missing. Places search tool is disabled.")
+        places_tool = places.PlaceSearch(config)
+        self._register("search_places", places_tool.search, generate_tool_schema(places_tool.search, "search_places"))
+        if not config.has_foursquare:
+            logger.info("Foursquare API key missing. search_places will use simulated fallback data.")
 
     def _register(self, name: str, func, definition: dict):
         self._tools[name] = func

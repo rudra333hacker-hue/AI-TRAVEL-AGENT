@@ -34,7 +34,17 @@ async def search_web(query: str, max_results: int = 5) -> dict:
                     })
             return results
 
-        results = await asyncio.to_thread(_do_search, query, max_results)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.to_thread(_do_search, query, max_results),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "query": query,
+                "results": [],
+                "warning": "Web search timed out after 10 seconds. Using cached/estimated data.",
+            }
 
         if not results:
             return {

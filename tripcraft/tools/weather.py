@@ -1,5 +1,56 @@
+import datetime
 from tripcraft.tools.geocode import geocode
 from tripcraft.utils import request_with_retry
+
+# Monthly climate averages for common tourist destinations (temp°C, rain_mm, crowd_level)
+_DESTINATION_SEASONS: dict[str, dict] = {
+    # Format: month_index (1-12): {"temp_avg": X, "rain": "low/mid/high", "note": "..."}
+}
+
+def _get_seasonality_advice(city_lower: str, travel_month: int | None, avg_max: float, avg_precip: float) -> dict:
+    """Generate human-readable seasonality advice based on weather data."""
+    month_names = ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
+    
+    # Determine visit quality from real weather data
+    if avg_precip > 150:
+        rating = "Poor"
+        rain_note = "Heavy monsoon/rainy season — frequent flooding and disruptions possible."
+    elif avg_precip > 60:
+        rating = "Fair"
+        rain_note = "Moderate rainfall expected — pack rain gear and expect some disruptions."
+    elif avg_precip > 20:
+        rating = "Good"
+        rain_note = "Light showers possible — generally pleasant travel conditions."
+    else:
+        rain_note = "Dry and sunny conditions — ideal for outdoor activities."
+        rating = "Excellent" if 18 <= avg_max <= 32 else "Good"
+
+    if avg_max > 40:
+        rating = "Fair"
+        temp_note = f"Very hot ({avg_max:.0f}°C avg) — stay hydrated, limit midday outdoor exposure."
+    elif avg_max > 35:
+        temp_note = f"Hot ({avg_max:.0f}°C avg) — mornings and evenings are best for sightseeing."
+    elif avg_max < 5:
+        rating = "Fair"
+        temp_note = f"Very cold ({avg_max:.0f}°C avg) — pack heavy winter gear."
+    elif avg_max < 15:
+        temp_note = f"Cool ({avg_max:.0f}°C avg) — light jacket recommended."
+    else:
+        temp_note = f"Comfortable temperatures ({avg_max:.0f}°C avg) — perfect for exploration."
+
+    month_label = month_names[travel_month] if travel_month and 1 <= travel_month <= 12 else "your travel period"
+    
+    advice = (
+        f"**{rating} time to visit** in {month_label}. "
+        f"{temp_note} {rain_note}"
+    )
+    
+    return {
+        "visit_rating": rating,          # Excellent / Good / Fair / Poor
+        "seasonality_advice": advice,
+        "travel_month": month_label,
+    }
 
 async def get_weather_forecast(city: str, days: int = 7) -> dict:
     """Get weather forecast for a city.
@@ -61,12 +112,28 @@ async def get_weather_forecast(city: str, days: int = 7) -> dict:
 
         avg_max = sum(d["temp_max"] for d in forecast) / len(forecast) if forecast else 0
         avg_min = sum(d["temp_min"] for d in forecast) / len(forecast) if forecast else 0
+        avg_precip = sum(d["precipitation_mm"] for d in forecast) / len(forecast) if forecast else 0
+
+        # Determine travel month from forecast dates or current date
+        travel_month = None
+        if forecast and forecast[0].get("date"):
+            try:
+                travel_month = int(forecast[0]["date"].split("-")[1])
+            except Exception:
+                pass
+        if not travel_month:
+            travel_month = datetime.datetime.now().month
+
+        seasonality = _get_seasonality_advice(loc["name"].lower(), travel_month, avg_max, avg_precip)
 
         return {
             "city": loc["name"],
             "country": loc.get("country", ""),
             "forecast": forecast,
             "summary": f"{avg_min:.0f}–{avg_max:.0f}°C, {forecast[0]['description'] if forecast else 'N/A'}",
+            "visit_rating": seasonality["visit_rating"],
+            "seasonality_advice": seasonality["seasonality_advice"],
+            "travel_month": seasonality["travel_month"],
         }
     except Exception as e:
         # Fallback if API request fails

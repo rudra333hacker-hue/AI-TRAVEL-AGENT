@@ -67,12 +67,48 @@ class TripCraftAgent:
         for round_num in range(1, self.MAX_ROUNDS + 1):
             try:
                 tools_def = self.tools.definitions if self.tools.definitions else None
+
+                # Callback that emits a thinking event during retry waits
+                # Use default-arg capture to avoid late-binding closure issues in a loop
+                retry_events: list = []
+                async def on_retry(attempt, wait_time, reason,
+                                   _events=retry_events, _rn=round_num):
+                    msg = f"⏳ {reason.capitalize()} — retrying in {wait_time:.0f}s (attempt {attempt}/4)..."
+                    _events.append(StreamEvent("thinking", {"status": msg, "step": _rn}))
+
                 response = await self.llm.complete(
                     messages=self.session.full_messages(),
                     tools=tools_def,
+                    on_retry=on_retry,
                 )
+                # Flush any retry-status thinking events
+                for ev in retry_events:
+                    yield ev
+
             except Exception as e:
-                yield StreamEvent("error", {"message": f"LLM completion error: {str(e)}"})
+                err_str = str(e)
+                # Friendly message for rate limit vs other errors
+                if "429" in err_str or "too many requests" in err_str.lower() or "rate limit" in err_str.lower():
+                    friendly = (
+                        "⚠️ **Too many requests** — the AI provider is currently rate-limiting us. "
+                        "Please wait a moment and try again. Your session is still active."
+                    )
+                elif "timeout" in err_str.lower() or "timed out" in err_str.lower():
+                    friendly = (
+                        "⏱️ **Request timed out** — the AI took too long to respond. "
+                        "Please try again, or simplify your query."
+                    )
+                elif "api key" in err_str.lower() or "401" in err_str or "403" in err_str:
+                    friendly = (
+                        "🔑 **Authentication error** — the API key may be invalid or expired. "
+                        "Please check the server configuration."
+                    )
+                else:
+                    friendly = (
+                        f"❌ **Something went wrong** — the AI could not process your request right now. "
+                        f"Please try again in a moment."
+                    )
+                yield StreamEvent("content", {"text": friendly})
                 yield StreamEvent("done", {
                     "session_id": self.session.id,
                     "rounds": round_num,
@@ -137,7 +173,13 @@ class TripCraftAgent:
                 })
 
         # Safeguard if loop limit reached
-        yield StreamEvent("error", {"message": "Reached maximum reasoning depth."})
+        yield StreamEvent("content", {
+            "text": (
+                "⚠️ **I needed more steps than expected** to plan your trip. "
+                "Please try rephrasing your request, or ask me to focus on one part at a time "
+                "(e.g. \"Just show me transport options\" or \"Find hotels only\")."
+            )
+        })
         yield StreamEvent("done", {
             "session_id": self.session.id,
             "rounds": self.MAX_ROUNDS,
