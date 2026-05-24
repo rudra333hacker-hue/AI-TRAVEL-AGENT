@@ -39,6 +39,7 @@ class Config:
         self.nvidia_key_4 = self.nvidia_keys_list[3] if len(self.nvidia_keys_list) > 3 else ""
         
         self.foursquare_key = os.getenv("FOURSQUARE_API_KEY", "")
+        self.navitia_key = os.getenv("NAVITIA_API_KEY", "")
         self.amadeus_client_id = os.getenv("AMADEUS_CLIENT_ID", "")
         self.amadeus_client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
 
@@ -72,6 +73,10 @@ class Config:
     @property
     def has_foursquare(self) -> bool:
         return bool(self.foursquare_key)
+
+    @property
+    def has_navitia(self) -> bool:
+        return bool(self.navitia_key)
 
     @property
     def has_amadeus(self) -> bool:

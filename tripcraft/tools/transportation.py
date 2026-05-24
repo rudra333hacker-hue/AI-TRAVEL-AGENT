@@ -97,6 +97,63 @@ async def _fetch_real_transport_data(origin: str, destination: str, departure_da
         return {"_source": "estimated"}
 
 
+async def _fetch_navitia_transit_data(origin_lat: float, origin_lon: float, dest_lat: float, dest_lon: float, departure_date: str, token: str) -> dict | None:
+    """Query Navitia API for transit route from coordinates."""
+    try:
+        from tripcraft.utils import request_with_retry
+        url = "https://api.navitia.io/v1/coverage/default/journeys"
+        navitia_datetime = f"{departure_date.replace('-', '')}T080000"
+        params = {
+            "from": f"{origin_lon};{origin_lat}",
+            "to": f"{dest_lon};{dest_lat}",
+            "datetime": navitia_datetime,
+            "count": 1
+        }
+        headers = {
+            "Authorization": token
+        }
+        logger.info(f"Querying Navitia API for transit route from ({origin_lat},{origin_lon}) to ({dest_lat},{dest_lon})")
+        response = await request_with_retry("GET", url, params=params, headers=headers, timeout=8.0)
+        if response.status_code == 200:
+            data = response.json()
+            journeys = data.get("journeys", [])
+            if journeys:
+                journey = journeys[0]
+                duration_sec = journey.get("duration", 0)
+                hours = duration_sec // 3600
+                minutes = (duration_sec % 3600) // 60
+                
+                networks = []
+                modes = []
+                for sec in journey.get("sections", []):
+                    display = sec.get("display_informations", {})
+                    network = display.get("network")
+                    mode = display.get("commercial_mode")
+                    if network and network not in networks:
+                        networks.append(network)
+                    if mode and mode not in modes:
+                        modes.append(mode)
+                
+                provider = ", ".join(networks) if networks else "Public Transit Network"
+                mode_str = " + ".join(modes) if modes else "Public Transit"
+                price_inr = round(max(50.0, duration_sec * 0.005))
+                price_usd = round(price_inr / 83.0, 2)
+                return {
+                    "mode": f"Public Transit ({mode_str})",
+                    "provider": provider,
+                    "duration": f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m",
+                    "price_usd": price_usd,
+                    "price_inr": price_inr,
+                    "booking_link": f"https://www.google.com/search?q=transit+tickets+from+{origin_lat},{origin_lon}+to+{dest_lat},{dest_lon}",
+                    "viability": "Eco-friendly transit via Navitia live data",
+                    "note": f"Multi-modal public transit routing. Transfers may apply.",
+                    "data_source": "navitia"
+                }
+    except Exception as e:
+        logger.warning(f"Navitia transit search failed: {e}")
+    return None
+
+
 def haversine_distance(lat1, lon1, lat2, lon2) -> float:
     """Calculate the great-circle distance between two points in kilometers."""
     R = 6371.0  # Earth radius in km
@@ -156,6 +213,17 @@ async def search(origin: str, destination: str, departure_date: str,
         route_seed = sum(ord(c) for c in origin + destination)
         rng = random.Random(route_seed)
 
+        # --- TRY NAVITIA FOR LIVE PUBLIC TRANSIT ---
+        navitia_option = None
+        from tripcraft.config import Config
+        config = Config()
+        if config.has_navitia and not geo_warning:
+            navitia_option = await _fetch_navitia_transit_data(
+                origin_loc["latitude"], origin_loc["longitude"],
+                dest_loc["latitude"], dest_loc["longitude"],
+                departure_date, config.navitia_key
+            )
+
         # --- TRY WEB SEARCH FOR REAL OPERATOR & PRICE DATA ---
         real_data = await _fetch_real_transport_data(origin, destination, departure_date, adults, distance)
 
@@ -201,6 +269,10 @@ async def search(origin: str, destination: str, departure_date: str,
                 "viability": "Most comfortable & scenic" if distance <= 1000 else "Slow for long distances",
                 "note": "Direct city center connection. Zero check-in fees."
             })
+
+        # Insert Navitia Option right after Trains if available
+        if navitia_option:
+            options.append(navitia_option)
 
         # 3. BUS
         bus_dur = (distance / 70.0)

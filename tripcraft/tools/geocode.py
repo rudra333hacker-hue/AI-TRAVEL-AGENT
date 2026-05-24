@@ -213,19 +213,55 @@ async def geocode(place_name: str) -> dict:
     if normalized_name in _cache:
         return _cache[normalized_name]
 
-    # 4. Open-Meteo Geocoding API (reliable, structured, good coverage)
+    # 4. OpenStreetMap Nominatim API (100% free, keyless, highly accurate)
+    coords = await _resolve_via_nominatim(place_name)
+    if coords:
+        _cache[normalized_name] = coords
+        return coords
+
+    # 5. Open-Meteo Geocoding API (reliable, structured, good coverage)
     coords = await _resolve_via_openmeteo(place_name)
     if coords:
         _cache[normalized_name] = coords
         return coords
 
-    # 5. Web search (fragile regex, last resort)
+    # 6. Web search (fragile regex, last resort)
     coords = await _resolve_via_web_search(place_name)
     if coords:
         _cache[normalized_name] = coords
         return coords
 
     return {"error": f"Location not found: '{place_name}'"}
+
+
+async def _resolve_via_nominatim(place_name: str) -> dict | None:
+    """Resolve location using OpenStreetMap Nominatim API."""
+    try:
+        from tripcraft.utils import request_with_retry
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {"q": place_name, "format": "json", "limit": 1}
+        headers = {"User-Agent": "TripCraftTravelPlanner/1.0 (sanap.gemini@example.com)"}
+
+        response = await request_with_retry("GET", url, params=params, headers=headers, timeout=5.0)
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                best = data[0]
+                lat = float(best.get("lat"))
+                lon = float(best.get("lon"))
+                display_name = best.get("display_name", place_name.title())
+                parts = display_name.split(",")
+                country = parts[-1].strip() if parts else ""
+                return {
+                    "name": parts[0].strip() if parts else place_name.title(),
+                    "country": country,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "timezone": "UTC",
+                }
+    except Exception as e:
+        logger.warning(f"Nominatim geocoding failed for '{place_name}': {e}")
+    return None
 
 
 def _fuzzy_lookup(name: str) -> dict | None:
