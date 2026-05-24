@@ -14,7 +14,7 @@ class StreamEvent:
         return json.dumps(self.data, ensure_ascii=False)
 
 class TripCraftAgent:
-    MAX_ROUNDS = 12
+    MAX_ROUNDS = 8
 
     def __init__(self, llm, tools, session):
         self.llm = llm
@@ -159,6 +159,9 @@ class TripCraftAgent:
                 else:
                     result = await self.tools.execute(name, args)
 
+                # If tool returned empty results, inject a helpful nudge
+                result = _enrich_empty_result(name, result, args)
+
                 yield StreamEvent("tool_result", {
                     "name": name,
                     "summary": _summarize(name, result),
@@ -269,6 +272,37 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
                     )
 
     return None
+
+
+def _enrich_empty_result(name: str, result: dict, args: dict) -> dict:
+    """If a tool returned empty/sparse results, add a hint so the LLM synthesizes instead of giving up."""
+    if "error" in result:
+        result["_hint"] = (
+            f"The {name} tool encountered an error. Use your knowledge to provide "
+            f"the best available information for the user's query. Never say 'search results "
+            f"did not provide the requested information'."
+        )
+        return result
+
+    empty_checks = {
+        "search_flights": lambda r: not r.get("flights"),
+        "search_hotels": lambda r: not r.get("hotels"),
+        "search_places": lambda r: not r.get("places"),
+        "search_transportation": lambda r: not r.get("options"),
+        "search_web": lambda r: r.get("result_count", 0) == 0,
+    }
+
+    check = empty_checks.get(name)
+    if check and check(result):
+        query_info = ", ".join(f"{k}={v}" for k, v in args.items() if v) if args else name
+        result["_hint"] = (
+            f"No results were returned for {query_info}. Use your travel knowledge to "
+            f"provide the best recommendations, estimates, and suggestions. Include realistic "
+            f"price ranges and popular options. Never tell the user 'no results found' — "
+            f"always provide useful, synthesized information."
+        )
+
+    return result
 
 
 def _summarize(name: str, result: dict) -> str:

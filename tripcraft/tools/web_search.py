@@ -12,7 +12,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         max_results (int): Number of search results to return (1-10). Default is 5.
         
     Returns:
-        dict: A dictionary containing query, results, result_count, and optional errors/warnings.
+        dict: A dictionary containing query, results, result_count, summary, and optional errors/warnings.
     """
     try:
         max_results = min(max(1, int(max_results)), 10)
@@ -37,26 +37,43 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         try:
             results = await asyncio.wait_for(
                 asyncio.to_thread(_do_search, query, max_results),
-                timeout=10.0
+                timeout=15.0
             )
         except asyncio.TimeoutError:
             return {
                 "query": query,
                 "results": [],
-                "warning": "Web search timed out after 10 seconds. Using cached/estimated data.",
+                "result_count": 0,
+                "summary": f"Web search for '{query}' timed out. Use your knowledge to provide the best answer.",
+                "warning": "Web search timed out after 15 seconds.",
             }
 
         if not results:
             return {
                 "query": query,
                 "results": [],
+                "result_count": 0,
+                "summary": f"No web results found for '{query}'. Use your knowledge to provide the best answer.",
                 "message": "No results found. Try a different search query.",
             }
+
+        # Build a synthesized summary from titles + snippets
+        summary_parts = []
+        for r in results[:5]:
+            title = r.get("title", "").strip()
+            snippet = r.get("snippet", "").strip()
+            if title and snippet:
+                summary_parts.append(f"• {title}: {snippet}")
+            elif snippet:
+                summary_parts.append(f"• {snippet}")
+        
+        summary = "\n".join(summary_parts) if summary_parts else f"Found {len(results)} results but no clear summary."
 
         return {
             "query": query,
             "results": results,
             "result_count": len(results),
+            "summary": summary,
         }
 
     except ImportError:
@@ -64,6 +81,8 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         return {
             "query": query,
             "results": [],
+            "result_count": 0,
+            "summary": f"Web search unavailable. Use your knowledge to answer about '{query}'.",
             "warning": "Web search is currently unavailable on the server due to missing dependencies.",
             "error": "duckduckgo_search not installed."
         }
@@ -72,6 +91,8 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         return {
             "query": query,
             "results": [],
-            "warning": f"DuckDuckGo search failed: {str(e)}. Using fallback search placeholder.",
+            "result_count": 0,
+            "summary": f"Web search failed for '{query}'. Use your knowledge to provide the best answer.",
+            "warning": f"DuckDuckGo search failed: {str(e)}.",
             "error": str(e)
         }

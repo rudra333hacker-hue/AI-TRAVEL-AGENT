@@ -99,8 +99,8 @@ app.add_middleware(
 )
 
 # ── In-Memory IP-based Rate Limiter Configuration ──
-RATE_LIMIT_REQUESTS = 60  # max 60 requests
-RATE_LIMIT_WINDOW = 60    # per 60 seconds
+RATE_LIMIT_REQUESTS = 120  # max 120 requests
+RATE_LIMIT_WINDOW = 60     # per 60 seconds
 client_requests = defaultdict(list)
 
 # ── Production API Key Configuration ──

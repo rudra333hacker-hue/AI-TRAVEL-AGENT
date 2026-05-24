@@ -55,6 +55,10 @@ _BUDGET_PATTERNS = [
     r'\b[\d,]+\s*(?:k|lakh|lakhs|crore|thousand|hundred)\b',
     r'\bbudget\s+(?:is|of|around|about)?\s*[\d,]+',
     r'\b(?:budget|money|afford|spend)\b',
+    r'\b\d{2,6}\s*(?:per\s+person|pp|each|total)\b',
+    r'\b(?:low|medium|mid|high|tight|small|big)\s+budget\b',
+    r'\b(?:cheap|expensive|affordable|luxur(?:y|ious)|budget[- ]?friendly)\b',
+    r'\bunder\s+(?:₹|rs\.?|\$)?\s*[\d,]+',
 ]
 
 # Date patterns
@@ -62,10 +66,14 @@ _DATE_PATTERNS = [
     r'\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
     r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b',
     r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b',
-    r'\b(?:next|this)\s+(?:week|month|weekend|monday|tuesday|wednesday|thursday|friday)',
+    r'\b(?:next|this|end of|mid|beginning of|start of|early|late)\s+(?:week|month|weekend|monday|tuesday|wednesday|thursday|friday|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)',
     r'\b\d{4}-\d{2}-\d{2}\b',
     r'\btoday\b|\btomorrow\b|\bweekend\b',
     r'\b(?:2025|2026|2027)\b',
+    r'\bin\s+(?:a\s+)?(?:few|couple|2|3)\s+(?:weeks?|months?)\b',
+    r'\b(?:around|about|sometime)\s+(?:in\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\b',
+    r'\bnext\s+(?:month|week|year|weekend)\b',
+    r'\b(?:flexible|anytime|asap|soon|no fixed)\b',
 ]
 
 # Duration patterns
@@ -74,14 +82,22 @@ _DURATION_PATTERNS = [
     r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:days?|nights?|weeks?)\b',
     r'\b(\d+)[- ]?day\b',
     r'\bweekend\b',  # implies ~2-3 days
+    r'\b(?:couple|few)\s+(?:of\s+)?(?:days?|nights?|weeks?)\b',
+    r'\blong\s+weekend\b',
+    r'\b(?:a|one)\s+week\b',
+    r'\bhalf\s+(?:a\s+)?week\b',
+    r'\b(?:short|quick)\s+trip\b',
 ]
 
 # Group size patterns
 _GROUP_PATTERNS = [
     r'\b(\d+)\s*(?:people|persons?|friends?|members?|travelers?|of us|pax)\b',
-    r'\b(?:solo|alone|by myself)\b',
-    r'\b(?:couple|two of us|just the two)\b',
-    r'\b(?:family|group|team|squad|crew|gang|us)\b',
+    r'\b(?:solo|alone|by myself|just me|myself|only me)\b',
+    r'\b(?:couple|two of us|just the two|just us two|me and my (?:friend|wife|husband|partner|bf|gf|girlfriend|boyfriend))\b',
+    r'\b(?:family|group|team|squad|crew|gang|us|we are|we\'re)\b',
+    r'\bjust us\b',
+    r'\bwith\s+(?:my\s+)?(?:friends?|family|wife|husband|partner|kids?|children)\b',
+    r'\b(?:me\s+and|and\s+me)\b',
 ]
 
 # Vibe / destination preference when no explicit destination
@@ -241,8 +257,8 @@ def extract_tier1_from_messages(messages: list[dict]) -> Tier1State:
                 if dur_match:
                     state.has_duration = True
                     state.duration_raw = dur_match
-                    if "weekend" in text:
-                        state.has_dates = True
+                    # Duration implies enough date info — user gave temporal context
+                    state.has_dates = True
             if not state.has_group_size:
                 grp_match = _check_pattern_list(text, _GROUP_PATTERNS)
                 if grp_match:
@@ -444,10 +460,10 @@ def should_ask_tier1(messages: list[dict]) -> tuple[bool, Optional[str]]:
     if n_user == 0:
         return False, None
 
-    # Fail-safe turn count: if the user has replied 3+ times to details questions
+    # Fail-safe turn count: if the user has replied 2+ times to details questions
     # and we are still missing fields, bypass interception and let the smart LLM
     # ask for details or plan directly to avoid infinite looping.
-    if n_user > 3:
+    if n_user > 2:
         return False, None
 
     # Check if the latest user message is just a greeting

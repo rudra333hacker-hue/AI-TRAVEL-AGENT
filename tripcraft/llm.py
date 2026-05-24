@@ -44,19 +44,17 @@ class LLMClient:
         kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.6,
-            "max_tokens": 4096,
-            "timeout": 15.0,
+            "temperature": 0.5,
+            "max_tokens": 3000,
+            "timeout": 30.0,
         }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
-            if self.provider == "nvidia":
-                kwargs["parallel_tool_calls"] = True
 
-        retries = 6
+        retries = 4
         delay = 1.0
-        backoff_factor = 2.0
+        backoff_factor = 1.5
         last_exc = None
 
         keys_tried_in_row = 0
@@ -106,7 +104,7 @@ class LLMClient:
 
                 # If all keys failed or we only have one key, perform backoff sleep
                 keys_tried_in_row = 0
-                wait_time = delay * (backoff_factor ** (attempt - 1))
+                wait_time = min(delay * (backoff_factor ** (attempt - 1)), 5.0)  # Cap at 5s
                 reason = "rate limited / auth error" if ("429" in err_str or "rate limit" in err_str or "403" in err_str or "401" in err_str) else "transient error"
                 logger.warning(
                     f"All keys tried or rate-limited. Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
