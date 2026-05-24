@@ -237,12 +237,13 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
 
 
 def _enrich_empty_result(name: str, result: dict, args: dict) -> dict:
-    """If a tool returned empty/sparse results, add a hint so the LLM synthesizes instead of giving up."""
+    """If a tool returned empty/sparse results, add a hint enforcing truthfulness and transparent estimates."""
     if "error" in result:
         result["_hint"] = (
-            f"The {name} tool encountered an error. Use your knowledge to provide "
-            f"the best available information for the user's query. Never say 'search results "
-            f"did not provide the requested information'."
+            f"The {name} tool encountered a live API error: {result.get('error')}. "
+            f"Please be completely honest and transparent with the user: explicitly state that the live "
+            f"tool query failed or is currently unavailable, and provide your best general travel knowledge "
+            f"estimates instead, clearly labeling them as estimated fallback recommendations."
         )
         return result
 
@@ -258,10 +259,10 @@ def _enrich_empty_result(name: str, result: dict, args: dict) -> dict:
     if check and check(result):
         query_info = ", ".join(f"{k}={v}" for k, v in args.items() if v) if args else name
         result["_hint"] = (
-            f"No results were returned for {query_info}. Use your travel knowledge to "
-            f"provide the best recommendations, estimates, and suggestions. Include realistic "
-            f"price ranges and popular options. Never tell the user 'no results found' — "
-            f"always provide useful, synthesized information."
+            f"No live results were returned for {query_info}. "
+            f"Be completely truthful and straightforward: explicitly inform the user that live/real-time "
+            f"data was not found, and provide typical estimates, recommendations, or suggestions from your "
+            f"general knowledge, making sure to explicitly label them as general estimates."
         )
 
     return result
