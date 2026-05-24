@@ -216,9 +216,9 @@ class TripCraftAgent:
 
 
 def _validate_args(name: str, args: dict, messages: list) -> str | None:
-    """Validate tool arguments — prevent past dates and fabricated origins."""
+    """Validate tool arguments — prevent past dates."""
 
-    # 1. Date validation — reject dates before 2026
+    # Date validation — reject dates before 2026
     date_params = ["check_in", "check_out", "departure_date", "return_date"]
     for param in date_params:
         if param in args and args[param]:
@@ -231,44 +231,6 @@ def _validate_args(name: str, args: dict, messages: list) -> str | None:
                         f"Validation Error: The year in {param} '{val}' is {year}, "
                         f"which is in the past. The current year is 2026. "
                         f"Please use dates in 2026 or later."
-                    )
-
-    # 2. Extract user messages for context
-    user_msgs = []
-    for m in messages:
-        if m.get("role") == "user":
-            c = m.get("content")
-            if c is None:
-                c = ""
-            elif isinstance(c, list):
-                c = " ".join([p.get("text", "") for p in c if isinstance(p, dict) and p.get("type") == "text"])
-            elif not isinstance(c, str):
-                c = str(c)
-            user_msgs.append(c)
-    user_text = " ".join(user_msgs).lower()
-
-    # 3. Origin validation for transport/flights — relaxed check
-    if name in ["search_flights", "search_transportation"]:
-        origin = args.get("origin") or ""
-        if not isinstance(origin, str):
-            origin = str(origin)
-        if origin:
-            # Only reject if origin is extremely short/conspicuously fake
-            clean_origin = origin.strip()
-            if len(clean_origin) <= 1:
-                return (
-                    "Validation Error: Starting location is missing or invalid. "
-                    "Please stop and ask the user: 'Where will you be starting your trip from?'"
-                )
-            # Token-level check: try to find at least partial overlap with user text
-            orig_tokens = [w for w in re.findall(r"\b\w+\b", clean_origin.lower()) if len(w) >= 2]
-            if orig_tokens and not any(w in user_text for w in orig_tokens):
-                # Fallback: check if the first 4 chars of any token appear in user text
-                if not any(t[:4] in user_text for t in orig_tokens if len(t) >= 4):
-                    return (
-                        "Validation Error: Starting location is missing or fabricated. "
-                        "The user has not specified where they are starting/departing from. "
-                        "Please stop and ask the user: 'Where will you be starting your trip from?'"
                     )
 
     return None
