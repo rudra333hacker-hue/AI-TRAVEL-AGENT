@@ -5,14 +5,17 @@ from dotenv import load_dotenv
 # ── Supported LLM providers ──
 PROVIDER_NVIDIA = "nvidia"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_GROQ = "groq"
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 # ── Default models per provider ──
 DEFAULT_MODELS = {
     PROVIDER_NVIDIA: "meta/llama-3.3-70b-instruct",
     PROVIDER_GEMINI: "gemini-2.5-flash",
+    PROVIDER_GROQ: "llama-3.3-70b-versatile",
 }
 
 
@@ -23,6 +26,13 @@ class Config:
         # ── API keys ──
         self.gemini_key = os.getenv("GEMINI_API_KEY", "")
         
+        self.groq_keys_list = []
+        for suffix in ["", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9", "_10"]:
+            val = os.getenv(f"GROQ_API_KEY{suffix}")
+            if val and val.strip() and val not in self.groq_keys_list:
+                self.groq_keys_list.append(val)
+        self.groq_key = self.groq_keys_list[0] if self.groq_keys_list else ""
+
         self.nvidia_keys_list = []
         for suffix in ["", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9", "_10"]:
             val = os.getenv(f"NVIDIA_API_KEY{suffix}")
@@ -40,13 +50,14 @@ class Config:
         self.amadeus_client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
 
         # ── Provider selection ──
-        # Auto-detect: if no provider explicitly set, prefer Gemini if key exists,
-        # otherwise fall back to NVIDIA.
+        # Auto-detect: if no provider explicitly set, prefer Gemini, then Groq, then NVIDIA.
         explicit_provider = os.getenv("LLM_PROVIDER")
         if explicit_provider:
             self.llm_provider = explicit_provider.lower()
         elif self.gemini_key:
             self.llm_provider = PROVIDER_GEMINI
+        elif self.groq_key:
+            self.llm_provider = PROVIDER_GROQ
         else:
             self.llm_provider = PROVIDER_NVIDIA
 
@@ -79,6 +90,14 @@ class Config:
                 raise RuntimeError(
                     "GEMINI_API_KEY is required when LLM_PROVIDER=gemini. "
                     "Get one free at https://aistudio.google.com"
+                )
+        elif self.llm_provider == PROVIDER_GROQ:
+            self.active_api_key = self.groq_key
+            self.active_base_url = GROQ_BASE_URL
+            if not self.active_api_key:
+                raise RuntimeError(
+                    "GROQ_API_KEY is required when LLM_PROVIDER=groq. "
+                    "Get one free at https://console.groq.com"
                 )
         else:
             raise RuntimeError(

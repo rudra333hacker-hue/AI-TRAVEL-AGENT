@@ -7,6 +7,7 @@ logger = logging.getLogger("tripcraft")
 PROVIDER_LABELS = {
     "nvidia": "NVIDIA NIM",
     "gemini": "Google AI Studio (Gemini)",
+    "groq": "Groq Console",
 }
 
 
@@ -19,6 +20,8 @@ class LLMClient:
         # Load all available keys from config
         if hasattr(config, "nvidia_keys") and self.provider == "nvidia":
             self.keys = config.nvidia_keys
+        elif hasattr(config, "groq_keys_list") and self.provider == "groq":
+            self.keys = config.groq_keys_list
         else:
             self.keys = [config.active_api_key] if config.active_api_key else []
 
@@ -43,7 +46,7 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": 0.5,
-            "timeout": 15.0,  # Shorter timeout since we run in parallel
+            "timeout": 30.0,  # Standard timeout for reliable generations
         }
         if self.provider != "gemini":
             kwargs["max_tokens"] = 3000
@@ -69,7 +72,7 @@ class LLMClient:
                     if self.provider == "nvidia":
                         req_kwargs["timeout"] = 7.0
                     else:
-                        req_kwargs["timeout"] = 15.0
+                        req_kwargs["timeout"] = 30.0
                     
                     res = await client.chat.completions.create(**req_kwargs)
                     self.current_client_idx = i
