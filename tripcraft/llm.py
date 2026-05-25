@@ -36,87 +36,83 @@ class LLMClient:
     async def complete(self, messages: list, tools: list | None = None, on_retry=None):
         """Send chat completion request to the configured provider with retries for transient errors.
         
-        Args:
-            messages: The list of messages to send.
-            tools: Optional list of tool definitions.
-            on_retry: Optional async callable(attempt, wait_time, reason) invoked before each retry sleep.
+        Uses speculative parallel execution (race-mode) across all configured keys for absolute speed and reliability.
         """
         kwargs = {
             "model": self.model,
             "messages": messages,
             "temperature": 0.5,
             "max_tokens": 3000,
-            "timeout": 30.0,
+            "timeout": 15.0,  # Shorter timeout since we run in parallel
         }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        retries = 4
-        delay = 1.0
+        retries = 3
+        delay = 1.5
         backoff_factor = 1.5
         last_exc = None
 
-        keys_tried_in_row = 0
+        async def _try_client(client, client_idx, req_kwargs):
+            try:
+                res = await client.chat.completions.create(**req_kwargs)
+                return res, client_idx
+            except Exception as e:
+                logger.warning(f"Speculative LLM call on key index {client_idx} failed: {e}")
+                raise e
 
         for attempt in range(1, retries + 1):
-            client = self.clients[self.current_client_idx]
-            try:
-                return await client.chat.completions.create(**kwargs)
-            except Exception as e:
-                last_exc = e
-                err_str = str(e).lower()
-                # Detect rate limit errors, quotas, transient server timeouts, or auth issues
-                is_transient = (
-                    "429" in err_str 
-                    or "too many requests" in err_str 
-                    or "rate limit" in err_str 
-                    or "500" in err_str 
-                    or "timeout" in err_str 
-                    or "timed out" in err_str
-                    or "timedout" in err_str
-                    or "503" in err_str
-                    or "busy" in err_str
-                    or "403" in err_str
-                    or "forbidden" in err_str
-                    or "unauthorized" in err_str
-                    or "401" in err_str
-                )
+            if len(self.clients) > 1:
+                logger.info(f"LLM speculative race starting (attempt {attempt}/{retries}) across {len(self.clients)} parallel keys...")
+                tasks = [
+                    asyncio.create_task(_try_client(self.clients[i], i, kwargs))
+                    for i in range(len(self.clients))
+                ]
                 
-                if not is_transient or attempt == retries:
-                    logger.error(f"LLM completion failed permanently on attempt {attempt}: {e}")
-                    raise e
-
-                # Rotate to the next key if we have multiple keys
-                if len(self.clients) > 1:
-                    old_idx = self.current_client_idx
-                    self.current_client_idx = (self.current_client_idx + 1) % len(self.clients)
-                    keys_tried_in_row += 1
-                    logger.warning(
-                        f"LLM call failed (attempt {attempt}/{retries}): {e}. "
-                        f"Rotating from key index {old_idx} to index {self.current_client_idx}."
-                    )
+                pending = set(tasks)
+                successful_response = None
+                
+                while pending:
+                    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                    for t in done:
+                        try:
+                            res, idx = t.result()
+                            successful_response = res
+                            self.current_client_idx = idx
+                            logger.info(f"🏆 Key index {idx} won the speculative LLM race!")
+                            break
+                        except Exception as e:
+                            last_exc = e
                     
-                    # If we haven't tried all keys yet in this failure burst, retry immediately (no sleep)!
-                    if keys_tried_in_row < len(self.clients):
-                        logger.info("Retrying next key index immediately...")
-                        continue
+                    if successful_response:
+                        break
+                
+                # Clean up / cancel remaining tasks
+                for t in pending:
+                    t.cancel()
+                
+                if successful_response:
+                    return successful_response
+            else:
+                # Single client fallback
+                client = self.clients[0]
+                try:
+                    return await client.chat.completions.create(**kwargs)
+                except Exception as e:
+                    last_exc = e
 
-                # If all keys failed or we only have one key, perform backoff sleep
-                keys_tried_in_row = 0
-                wait_time = min(delay * (backoff_factor ** (attempt - 1)), 5.0)  # Cap at 5s
-                reason = "rate limited / auth error" if ("429" in err_str or "rate limit" in err_str or "403" in err_str or "401" in err_str) else "transient error"
-                logger.warning(
-                    f"All keys tried or rate-limited. Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})"
-                )
-                # Notify caller so it can surface status to the user
-                if on_retry:
-                    try:
-                        await on_retry(attempt, wait_time, reason)
-                    except Exception:
-                        pass
-                    
-                await asyncio.sleep(wait_time)
+            # If we reached here, all keys failed or single client failed.
+            # Perform backoff sleep before retry.
+            wait_time = min(delay * (backoff_factor ** (attempt - 1)), 5.0)
+            reason = "transient error / rate limits"
+            logger.warning(f"All parallel LLM attempts failed. Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})")
+            if on_retry:
+                try:
+                    await on_retry(attempt, wait_time, reason)
+                except Exception:
+                    pass
+            await asyncio.sleep(wait_time)
 
         if last_exc:
             raise last_exc
