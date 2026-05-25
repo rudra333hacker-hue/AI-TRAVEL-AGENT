@@ -12,7 +12,7 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 # ── Default models per provider ──
 DEFAULT_MODELS = {
     PROVIDER_NVIDIA: "meta/llama-3.3-70b-instruct",
-    PROVIDER_GEMINI: "gemini-2.0-flash",
+    PROVIDER_GEMINI: "gemini-2.5-flash",
 }
 
 
