@@ -4,12 +4,15 @@ from dotenv import load_dotenv
 
 # ── Supported LLM providers ──
 PROVIDER_NVIDIA = "nvidia"
+PROVIDER_GEMINI = "gemini"
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 # ── Default models per provider ──
 DEFAULT_MODELS = {
     PROVIDER_NVIDIA: "meta/llama-3.3-70b-instruct",
+    PROVIDER_GEMINI: "gemini-2.0-flash",
 }
 
 
@@ -17,16 +20,9 @@ class Config:
     def __init__(self):
         load_dotenv()
 
-        # ── Provider selection ──
-        # Auto-detect: if no provider explicitly set, prefer AIMLAPI if key exists,
-        # fall back to NVIDIA if NVIDIA key exists.
-        explicit_provider = os.getenv("LLM_PROVIDER")
-        if explicit_provider:
-            self.llm_provider = explicit_provider.lower()
-        else:
-            self.llm_provider = PROVIDER_NVIDIA
-
         # ── API keys ──
+        self.gemini_key = os.getenv("GEMINI_API_KEY", "")
+        
         self.nvidia_keys_list = []
         for suffix in ["", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9", "_10"]:
             val = os.getenv(f"NVIDIA_API_KEY{suffix}")
@@ -42,6 +38,17 @@ class Config:
         self.navitia_key = os.getenv("NAVITIA_API_KEY", "")
         self.amadeus_client_id = os.getenv("AMADEUS_CLIENT_ID", "")
         self.amadeus_client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
+
+        # ── Provider selection ──
+        # Auto-detect: if no provider explicitly set, prefer Gemini if key exists,
+        # otherwise fall back to NVIDIA.
+        explicit_provider = os.getenv("LLM_PROVIDER")
+        if explicit_provider:
+            self.llm_provider = explicit_provider.lower()
+        elif self.gemini_key:
+            self.llm_provider = PROVIDER_GEMINI
+        else:
+            self.llm_provider = PROVIDER_NVIDIA
 
         # ── Server ──
         self.host = os.getenv("HOST", "0.0.0.0")
@@ -64,6 +71,14 @@ class Config:
                 raise RuntimeError(
                     "NVIDIA_API_KEY is required when LLM_PROVIDER=nvidia. "
                     "Get one free at https://build.nvidia.com"
+                )
+        elif self.llm_provider == PROVIDER_GEMINI:
+            self.active_api_key = self.gemini_key
+            self.active_base_url = GEMINI_BASE_URL
+            if not self.active_api_key:
+                raise RuntimeError(
+                    "GEMINI_API_KEY is required when LLM_PROVIDER=gemini. "
+                    "Get one free at https://aistudio.google.com"
                 )
         else:
             raise RuntimeError(

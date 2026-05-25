@@ -6,6 +6,7 @@ logger = logging.getLogger("tripcraft")
 
 PROVIDER_LABELS = {
     "nvidia": "NVIDIA NIM",
+    "gemini": "Google AI Studio (Gemini)",
 }
 
 
@@ -48,7 +49,9 @@ class LLMClient:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
-            kwargs["parallel_tool_calls"] = False
+            # Only restrict tool calls to a single call on NVIDIA NIM
+            if self.provider == "nvidia":
+                kwargs["parallel_tool_calls"] = False
 
         retries = 3
         delay = 1.5
@@ -60,9 +63,12 @@ class LLMClient:
             for i, client in enumerate(self.clients):
                 try:
                     logger.info(f"LLM request attempting key index {i} (attempt {attempt}/{retries})...")
-                    # Try this client with a short timeout (7.0s) for snappy failover
+                    # Try this client with a sensible timeout
                     req_kwargs = dict(kwargs)
-                    req_kwargs["timeout"] = 7.0
+                    if self.provider == "nvidia":
+                        req_kwargs["timeout"] = 7.0
+                    else:
+                        req_kwargs["timeout"] = 15.0
                     
                     res = await client.chat.completions.create(**req_kwargs)
                     self.current_client_idx = i

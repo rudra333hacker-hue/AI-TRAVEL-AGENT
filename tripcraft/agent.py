@@ -135,22 +135,14 @@ class TripCraftAgent:
                 })
                 return
 
-            # 5. Process ALL tool calls (not just the first)
-            for tc in msg.tool_calls:
+            # 5. Process ALL tool calls concurrently in parallel
+            async def run_single_tool(tc):
                 name = tc.function.name
-                total_tools_called += 1
                 try:
                     args = json.loads(tc.function.arguments)
                 except Exception as parse_err:
                     args = {}
-                    yield StreamEvent("error", {"message": f"Failed to parse tool args for '{name}': {parse_err}"})
-                    continue
-
-                yield StreamEvent("tool_call", {
-                    "name": name, 
-                    "args": args, 
-                    "step": round_num
-                })
+                    return tc.id, name, {"error": f"Failed to parse tool args: {parse_err}"}, args
 
                 # Validate arguments
                 validation_error = _validate_args(name, args, self.session.messages)
@@ -159,19 +151,36 @@ class TripCraftAgent:
                 else:
                     result = await self.tools.execute(name, args)
 
-                # If tool returned empty results, inject a helpful nudge
+                # Enrich empty results
                 result = _enrich_empty_result(name, result, args)
+                return tc.id, name, result, args
 
+            # Stream tool calls
+            for tc in msg.tool_calls:
+                total_tools_called += 1
+                try:
+                    args = json.loads(tc.function.arguments)
+                except Exception:
+                    args = {}
+                yield StreamEvent("tool_call", {
+                    "name": tc.function.name,
+                    "args": args,
+                    "step": round_num
+                })
+
+            # Gather execution concurrently
+            tool_execution_results = await asyncio.gather(*(run_single_tool(tc) for tc in msg.tool_calls))
+
+            # Stream results and add to message history
+            for tc_id, name, result, args in tool_execution_results:
                 yield StreamEvent("tool_result", {
                     "name": name,
                     "summary": _summarize(name, result),
                     "step": round_num,
                 })
-
-                # Append tool result to history
                 self.session.add_message({
                     "role": "tool",
-                    "tool_call_id": tc.id,
+                    "tool_call_id": tc_id,
                     "content": json.dumps(result, ensure_ascii=False),
                 })
 
