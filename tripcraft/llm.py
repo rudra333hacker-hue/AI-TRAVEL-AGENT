@@ -43,9 +43,10 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": 0.5,
-            "max_tokens": 3000,
             "timeout": 15.0,  # Shorter timeout since we run in parallel
         }
+        if self.provider != "gemini":
+            kwargs["max_tokens"] = 3000
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
