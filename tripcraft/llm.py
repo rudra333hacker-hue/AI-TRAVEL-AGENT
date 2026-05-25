@@ -48,65 +48,41 @@ class LLMClient:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+            kwargs["parallel_tool_calls"] = False
 
         retries = 3
         delay = 1.5
         backoff_factor = 1.5
         last_exc = None
 
-        async def _try_client(client, client_idx, req_kwargs):
-            try:
-                res = await client.chat.completions.create(**req_kwargs)
-                return res, client_idx
-            except Exception as e:
-                logger.warning(f"Speculative LLM call on key index {client_idx} failed: {e}")
-                raise e
-
         for attempt in range(1, retries + 1):
-            if len(self.clients) > 1:
-                logger.info(f"LLM speculative race starting (attempt {attempt}/{retries}) across {len(self.clients)} parallel keys...")
-                tasks = [
-                    asyncio.create_task(_try_client(self.clients[i], i, kwargs))
-                    for i in range(len(self.clients))
-                ]
-                
-                pending = set(tasks)
-                successful_response = None
-                
-                while pending:
-                    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-                    for t in done:
-                        try:
-                            res, idx = t.result()
-                            successful_response = res
-                            self.current_client_idx = idx
-                            logger.info(f"🏆 Key index {idx} won the speculative LLM race!")
-                            break
-                        except Exception as e:
-                            last_exc = e
-                    
-                    if successful_response:
-                        break
-                
-                # Clean up / cancel remaining tasks
-                for t in pending:
-                    t.cancel()
-                
-                if successful_response:
-                    return successful_response
-            else:
-                # Single client fallback
-                client = self.clients[0]
+            # Try keys sequentially to conserve credits
+            for i, client in enumerate(self.clients):
                 try:
-                    return await client.chat.completions.create(**kwargs)
+                    logger.info(f"LLM request attempting key index {i} (attempt {attempt}/{retries})...")
+                    # Try this client with a short timeout (7.0s) for snappy failover
+                    req_kwargs = dict(kwargs)
+                    req_kwargs["timeout"] = 7.0
+                    
+                    res = await client.chat.completions.create(**req_kwargs)
+                    self.current_client_idx = i
+                    logger.info(f"🏆 Key index {i} succeeded!")
+                    return res
                 except Exception as e:
                     last_exc = e
+                    err_str = str(e)
+                    logger.warning(f"LLM key index {i} failed: {err_str}")
+                    # If it's a 400 Bad Request, raise it immediately
+                    if "400" in err_str:
+                        raise e
+                    # Otherwise, failover to the next key immediately without waiting!
+                    continue
 
-            # If we reached here, all keys failed or single client failed.
+            # If we reached here, all keys failed.
             # Perform backoff sleep before retry.
             wait_time = min(delay * (backoff_factor ** (attempt - 1)), 5.0)
-            reason = "transient error / rate limits"
-            logger.warning(f"All parallel LLM attempts failed. Retrying in {wait_time:.2f}s... (Attempt {attempt}/{retries})")
+            reason = "transient error or rate limits"
+            logger.warning(f"All LLM keys failed in round {attempt}. Retrying in {wait_time:.2f}s...")
             if on_retry:
                 try:
                     await on_retry(attempt, wait_time, reason)
