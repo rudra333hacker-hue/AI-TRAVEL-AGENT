@@ -220,13 +220,33 @@ class FlightSearch:
         except Exception as e:
             logger.warning(f"Web search for flight data failed: {e}")
 
+        # ── Region-aware pricing ──
+        origin_country = origin_loc.get("country", "").lower()
+        dest_country = dest_loc.get("country", "").lower()
+        is_indian = any(c in ["india"] for c in [origin_country, dest_country])
+        is_south_asian = any(c in ["india", "pakistan", "bangladesh", "nepal", "sri lanka"]
+                            for c in [origin_country, dest_country])
+        is_european = any(c in ["france", "germany", "united kingdom", "italy", "spain",
+                                "netherlands", "switzerland", "czech republic", "portugal"]
+                          for c in [origin_country, dest_country])
+
         if web_prices:
             avg_price_inr = sum(web_prices) / len(web_prices)
-            base_price = (avg_price_inr / 83.0) / adults
+            base_price_inr = avg_price_inr / adults
             note_str = "Price range sourced from live web search"
+        elif is_indian:
+            # Indian domestic: ₹2,500 base + ₹3.5-5/km
+            base_price_inr = (2500 + distance * 4.2) / 1.0  # per person
+            note_str = "Estimated price — check airline websites for live fares"
+        elif is_south_asian:
+            base_price_inr = (3500 + distance * 5.0)
+            note_str = "Estimated price — check airline websites for live fares"
+        elif is_european:
+            base_price_inr = (2500 + distance * 6.0)  # Budget airlines in Europe
+            note_str = "Estimated price — check airline websites for live fares"
         else:
-            base_price = 80.0 + (distance * 0.08)
-            note_str = "Estimated price based on distance (Amadeus not configured)"
+            base_price_inr = (6000 + distance * 7.0)  # International long-haul
+            note_str = "Estimated price — check airline websites for live fares"
 
         carriers = found_carriers if found_carriers else get_airline_options(origin_loc.get("country", ""), dest_loc.get("country", ""))
         if len(carriers) < 3:
@@ -242,7 +262,8 @@ class FlightSearch:
         for i in range(min(max_results, len(carriers))):
             carrier = carriers[i]
             price_multiplier = rng.uniform(0.85, 1.25)
-            ticket_price = round(base_price * price_multiplier * adults, 2)
+            ticket_price_inr = round(base_price_inr * price_multiplier * adults)
+            ticket_price_usd = round(ticket_price_inr / 83.0, 2)
 
             if distance < 1200:
                 stops = 0
@@ -270,9 +291,9 @@ class FlightSearch:
                 "departure_time": dep_time,
                 "stops": stops,
                 "duration": duration_str,
-                "price": ticket_price,
-                "price_usd": ticket_price,
-                "price_inr": round(ticket_price * 83.0, 2),
+                "price": ticket_price_usd,
+                "price_usd": ticket_price_usd,
+                "price_inr": ticket_price_inr,
                 "currency": "USD",
                 "booking_link": f"https://www.google.com/travel/flights?q=Flights%20to%20{dest_loc['name'].replace(' ', '%20')}%20from%20{origin_loc['name'].replace(' ', '%20')}%20on%20{departure_date}",
                 "note": note_str,
