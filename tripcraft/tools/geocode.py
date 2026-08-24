@@ -242,7 +242,7 @@ async def _resolve_via_nominatim(place_name: str) -> dict | None:
         params = {"q": place_name, "format": "json", "limit": 1}
         headers = {"User-Agent": "TripCraftTravelPlanner/1.0 (sanap.gemini@example.com)"}
 
-        response = await request_with_retry("GET", url, params=params, headers=headers, timeout=5.0)
+        response = await request_with_retry("GET", url, params=params, headers=headers, timeout=2.0)
         if response.status_code == 200:
             data = response.json()
             if data:

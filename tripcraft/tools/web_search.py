@@ -37,7 +37,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         try:
             results = await asyncio.wait_for(
                 asyncio.to_thread(_do_search, query, max_results),
-                timeout=15.0
+                timeout=3.5
             )
         except asyncio.TimeoutError:
             return {
@@ -45,7 +45,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
                 "results": [],
                 "result_count": 0,
                 "summary": f"Web search for '{query}' timed out. Use your knowledge to provide the best answer.",
-                "warning": "Web search timed out after 15 seconds.",
+                "warning": "Web search timed out after 3.5 seconds.",
             }
 
         if not results:
