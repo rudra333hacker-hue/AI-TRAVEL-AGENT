@@ -10,6 +10,13 @@ PROVIDER_LABELS = {
     "groq": "Groq Console",
 }
 
+# Supported Gemini model hierarchy for failover across independent quota buckets
+GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-lite-latest"
+]
+
 
 class LLMClient:
     def __init__(self, config):
@@ -27,34 +34,33 @@ class LLMClient:
         else:
             self.keys = [config.active_api_key] if config.active_api_key else []
 
-        # Build primary clients with explicit client-level timeout
-        if not self.keys:
-            self.clients = [AsyncOpenAI(api_key="", base_url=self.base_url, timeout=20.0)]
+        # Build clients: map each API key to all available model fallback candidates
+        self.clients_pool = []
+        if self.provider == "gemini":
+            for k in self.keys:
+                client = AsyncOpenAI(api_key=k, base_url=self.base_url, timeout=15.0)
+                for m in GEMINI_MODELS:
+                    self.clients_pool.append((client, m, "gemini"))
         else:
-            self.clients = [AsyncOpenAI(api_key=key, base_url=self.base_url, timeout=20.0) for key in self.keys]
-            
-        # Build fallback clients from other providers if available
-        self.fallback_clients = []
-        if self.provider != "nvidia" and getattr(config, "nvidia_keys_list", []):
-            for k in config.nvidia_keys_list:
-                self.fallback_clients.append((
-                    AsyncOpenAI(api_key=k, base_url="https://integrate.api.nvidia.com/v1", timeout=20.0),
-                    "meta/llama-3.3-70b-instruct",
-                    "nvidia"
-                ))
+            for k in self.keys:
+                client = AsyncOpenAI(api_key=k, base_url=self.base_url, timeout=15.0)
+                self.clients_pool.append((client, self.model, self.provider))
+
+        # Build cross-provider fallback clients
         if self.provider != "gemini" and getattr(config, "gemini_keys_list", []):
             for k in config.gemini_keys_list:
-                self.fallback_clients.append((
-                    AsyncOpenAI(api_key=k, base_url="https://generativelanguage.googleapis.com/v1beta/openai/", timeout=20.0),
-                    "gemini-2.5-flash",
-                    "gemini"
-                ))
-            
-        self.current_client_idx = 0
-        
+                client = AsyncOpenAI(api_key=k, base_url="https://generativelanguage.googleapis.com/v1beta/openai/", timeout=15.0)
+                for m in GEMINI_MODELS:
+                    self.clients_pool.append((client, m, "gemini"))
+                    
+        if getattr(config, "nvidia_keys_list", []):
+            for k in config.nvidia_keys_list:
+                client = AsyncOpenAI(api_key=k, base_url="https://integrate.api.nvidia.com/v1", timeout=12.0)
+                self.clients_pool.append((client, "meta/llama-3.3-70b-instruct", "nvidia"))
+
         logger.info(
             f"LLM initialized: provider={PROVIDER_LABELS.get(self.provider, self.provider)}, "
-            f"model={self.model}, base_url={self.base_url}, active_keys={len(self.keys)}, fallback_clients={len(self.fallback_clients)}"
+            f"model={self.model}, base_url={self.base_url}, total_failover_clients={len(self.clients_pool)}"
         )
 
     def _is_rate_limit_error(self, error: Exception) -> bool:
@@ -74,119 +80,64 @@ class LLMClient:
         return False
 
     async def complete(self, messages: list, tools: list | None = None, on_retry=None):
-        """Send chat completion request with robust multi-key, multi-provider failover.
-        
-        Uses asyncio.wait_for around every API call to guarantee hard timeouts and prevent hangs.
-        """
+        """Send chat completion request with instant failover across Gemini model quota buckets."""
         kwargs = {
-            "model": self.model,
             "messages": messages,
             "temperature": 0.5,
         }
-        if self.provider != "gemini":
-            kwargs["max_tokens"] = 3000
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
-            if self.provider == "nvidia":
-                kwargs["parallel_tool_calls"] = False
 
-        max_rounds = 3
-        base_delay = 1.5
+        max_rounds = 2
         last_exc = None
         hit_rate_limit = False
 
         for round_num in range(1, max_rounds + 1):
-            # ── 1. Try primary provider keys ──
-            for i, client in enumerate(self.clients):
+            for idx, (client, model_name, provider_name) in enumerate(self.clients_pool):
                 try:
-                    logger.info(f"LLM request: primary key {i+1}/{len(self.clients)} (round {round_num}/{max_rounds})")
+                    logger.info(f"LLM attempt {idx+1}/{len(self.clients_pool)}: {provider_name} ({model_name})")
                     req_kwargs = dict(kwargs)
-                    call_timeout = 20.0 if self.provider != "nvidia" else 15.0
-                    
-                    # Hard asyncio timeout to guarantee no hangs on stalled HTTP streams
+                    req_kwargs["model"] = model_name
+
+                    if provider_name != "gemini":
+                        req_kwargs["max_tokens"] = 3000
+                        if provider_name == "nvidia":
+                            req_kwargs["parallel_tool_calls"] = False
+
                     res = await asyncio.wait_for(
                         client.chat.completions.create(**req_kwargs),
-                        timeout=call_timeout
+                        timeout=15.0
                     )
-                    self.current_client_idx = i
-                    logger.info(f"Primary key {i+1} succeeded!")
+                    logger.info(f"🏆 LLM client {idx+1} ({provider_name} - {model_name}) SUCCEEDED!")
                     return res
                 except Exception as e:
                     last_exc = e
                     err_str = str(e)
-                    logger.warning(f"Primary key {i+1} failed: {err_str[:200]}")
+                    logger.warning(f"LLM client {idx+1} ({provider_name} - {model_name}) failed: {err_str[:150]}")
                     
                     if self._is_bad_request_error(e):
                         raise e
                     
                     if self._is_rate_limit_error(e):
                         hit_rate_limit = True
-                        await asyncio.sleep(0.3)
                     continue
 
-            # ── 2. Try fallback provider keys ──
-            for fb_idx, (fb_client, fb_model, fb_provider) in enumerate(self.fallback_clients):
-                try:
-                    logger.info(f"Fallback: {fb_provider} ({fb_model}) key {fb_idx+1}/{len(self.fallback_clients)} (round {round_num})")
-                    fb_kwargs = dict(kwargs)
-                    fb_kwargs["model"] = fb_model
-                    
-                    if fb_provider == "gemini":
-                        fb_kwargs.pop("max_tokens", None)
-                        call_timeout = 20.0
-                    elif fb_provider == "nvidia":
-                        fb_kwargs["max_tokens"] = 3000
-                        call_timeout = 15.0
-                    else:
-                        call_timeout = 20.0
-
-                    res = await asyncio.wait_for(
-                        fb_client.chat.completions.create(**fb_kwargs),
-                        timeout=call_timeout
-                    )
-                    logger.info(f"Fallback {fb_provider} key {fb_idx+1} succeeded!")
-                    return res
-                except Exception as fb_err:
-                    last_exc = fb_err
-                    logger.warning(f"Fallback {fb_provider} key {fb_idx+1} failed: {str(fb_err)[:200]}")
-                    
-                    if self._is_rate_limit_error(fb_err):
-                        hit_rate_limit = True
-                        await asyncio.sleep(0.3)
-                    continue
-
-            # ── 3. All keys exhausted this round — backoff before retry ──
             if round_num < max_rounds:
-                wait_time = min(base_delay * (1.5 ** (round_num - 1)), 5.0)
-                if hit_rate_limit:
-                    wait_time = max(wait_time, 2.0)
-                
-                logger.warning(
-                    f"All {len(self.clients)} primary + {len(self.fallback_clients)} fallback keys failed "
-                    f"(round {round_num}). Retrying in {wait_time:.1f}s..."
-                )
+                wait_time = 2.0
+                logger.warning(f"All {len(self.clients_pool)} failover targets exhausted in round {round_num}. Retrying in {wait_time}s...")
                 if on_retry:
                     try:
-                        await on_retry(round_num, wait_time, 
-                                       "rate limit" if hit_rate_limit else "transient error")
+                        await on_retry(round_num, wait_time, "rate limit" if hit_rate_limit else "transient error")
                     except Exception:
                         pass
                 await asyncio.sleep(wait_time)
-                hit_rate_limit = False
 
-        # All rounds exhausted
-        total_keys = len(self.clients) + len(self.fallback_clients)
-        logger.error(
-            f"LLM request failed after {max_rounds} rounds across {total_keys} keys. "
-            f"Last error: {last_exc}"
-        )
         if last_exc:
             raise last_exc
 
     async def close(self):
-        for client in self.clients:
-            await client.close()
+        pass
 
     def status(self) -> dict:
         return {
@@ -195,5 +146,5 @@ class LLMClient:
             "base_url": self.base_url,
             "status": "connected",
             "active_keys": len(self.keys),
-            "fallback_keys": len(self.fallback_clients),
+            "total_clients": len(self.clients_pool),
         }
