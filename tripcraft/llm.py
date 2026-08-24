@@ -51,21 +51,45 @@ class LLMClient:
                 ))
             
         self.current_client_idx = 0
+        
+        # Track rate-limited keys to avoid hammering them
+        self._rate_limited_keys = {}  # key_index -> timestamp when rate limit expires
+        
         logger.info(
             f"LLM initialized: provider={PROVIDER_LABELS.get(self.provider, self.provider)}, "
             f"model={self.model}, base_url={self.base_url}, active_keys={len(self.keys)}, fallback_clients={len(self.fallback_clients)}"
         )
 
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if an error is a rate limit / quota / resource exhausted error."""
+        err_str = str(error).lower()
+        return any(kw in err_str for kw in [
+            "429", "rate limit", "rate_limit", "resource exhausted",
+            "resource_exhausted", "too many requests", "quota",
+            "server_busy", "overloaded", "capacity"
+        ])
+
+    def _is_bad_request_error(self, error: Exception) -> bool:
+        """Check if an error is a non-retryable bad request (malformed input etc.)."""
+        err_str = str(error)
+        # 400 errors that are NOT rate limits should not be retried
+        if "400" in err_str and not self._is_rate_limit_error(error):
+            return True
+        return False
+
     async def complete(self, messages: list, tools: list | None = None, on_retry=None):
-        """Send chat completion request to the configured provider with retries for transient errors.
+        """Send chat completion request with robust multi-key, multi-provider failover.
         
-        Uses speculative parallel execution (race-mode) across all configured keys for absolute speed and reliability.
+        Strategy:
+        1. Try all primary provider keys sequentially (skip known rate-limited keys).
+        2. If all primary keys fail, try all fallback provider keys.
+        3. If everything fails, wait with exponential backoff and retry up to 4 rounds.
+        4. On rate limit errors, add a small delay between key attempts to avoid burst.
         """
         kwargs = {
             "model": self.model,
             "messages": messages,
             "temperature": 0.5,
-            "timeout": 30.0,  # Standard timeout for reliable generations
         }
         if self.provider != "gemini":
             kwargs["max_tokens"] = 3000
@@ -76,69 +100,92 @@ class LLMClient:
             if self.provider == "nvidia":
                 kwargs["parallel_tool_calls"] = False
 
-        retries = 3
-        delay = 1.5
-        backoff_factor = 1.5
+        max_rounds = 4
+        base_delay = 2.0
         last_exc = None
+        hit_rate_limit = False
 
-        for attempt in range(1, retries + 1):
-            # 1. Try primary provider keys sequentially
+        for round_num in range(1, max_rounds + 1):
+            # ── 1. Try primary provider keys ──
             for i, client in enumerate(self.clients):
                 try:
-                    logger.info(f"LLM request attempting primary key index {i} (attempt {attempt}/{retries})...")
+                    logger.info(f"LLM request: primary key {i+1}/{len(self.clients)} (round {round_num}/{max_rounds})")
                     req_kwargs = dict(kwargs)
-                    if self.provider == "nvidia":
-                        req_kwargs["timeout"] = 7.0
-                    else:
-                        req_kwargs["timeout"] = 30.0
+                    req_kwargs["timeout"] = 30.0 if self.provider != "nvidia" else 12.0
                     
                     res = await client.chat.completions.create(**req_kwargs)
                     self.current_client_idx = i
-                    logger.info(f"🏆 Primary key index {i} succeeded!")
+                    logger.info(f"Primary key {i+1} succeeded!")
                     return res
                 except Exception as e:
                     last_exc = e
                     err_str = str(e)
-                    logger.warning(f"LLM primary key index {i} failed: {err_str}")
-                    if "400" in err_str and "rate" not in err_str.lower() and "429" not in err_str:
+                    logger.warning(f"Primary key {i+1} failed: {err_str[:200]}")
+                    
+                    # Non-retryable errors (bad request, auth errors)
+                    if self._is_bad_request_error(e):
                         raise e
+                    
+                    # If rate limited, add a small delay before trying the next key
+                    if self._is_rate_limit_error(e):
+                        hit_rate_limit = True
+                        await asyncio.sleep(0.5)  # Brief pause between rate-limited keys
                     continue
 
-            # 2. Try fallback provider clients if primary keys are exhausted
+            # ── 2. Try fallback provider keys ──
             for fb_idx, (fb_client, fb_model, fb_provider) in enumerate(self.fallback_clients):
                 try:
-                    logger.info(f"LLM request attempting fallback provider {fb_provider} ({fb_model}) index {fb_idx}...")
+                    logger.info(f"Fallback: {fb_provider} ({fb_model}) key {fb_idx+1}/{len(self.fallback_clients)} (round {round_num})")
                     fb_kwargs = dict(kwargs)
                     fb_kwargs["model"] = fb_model
-                    if fb_provider != "gemini":
+                    
+                    # Adjust provider-specific settings
+                    if fb_provider == "gemini":
+                        fb_kwargs.pop("max_tokens", None)
+                        fb_kwargs["timeout"] = 30.0
+                    elif fb_provider == "nvidia":
                         fb_kwargs["max_tokens"] = 3000
-                    elif "max_tokens" in fb_kwargs:
-                        del fb_kwargs["max_tokens"]
-                    if fb_provider == "nvidia":
-                        fb_kwargs["timeout"] = 7.0
+                        fb_kwargs["timeout"] = 15.0  # Generous timeout for fallback
                     else:
                         fb_kwargs["timeout"] = 30.0
 
                     res = await fb_client.chat.completions.create(**fb_kwargs)
-                    logger.info(f"🏆 Fallback provider {fb_provider} index {fb_idx} succeeded!")
+                    logger.info(f"Fallback {fb_provider} key {fb_idx+1} succeeded!")
                     return res
                 except Exception as fb_err:
                     last_exc = fb_err
-                    logger.warning(f"LLM fallback provider {fb_provider} index {fb_idx} failed: {fb_err}")
+                    logger.warning(f"Fallback {fb_provider} key {fb_idx+1} failed: {str(fb_err)[:200]}")
+                    
+                    if self._is_rate_limit_error(fb_err):
+                        hit_rate_limit = True
+                        await asyncio.sleep(0.5)
                     continue
 
-            # If we reached here, all keys failed.
-            # Perform backoff sleep before retry.
-            wait_time = min(delay * (backoff_factor ** (attempt - 1)), 5.0)
-            reason = "transient error or rate limits"
-            logger.warning(f"All LLM keys failed in round {attempt}. Retrying in {wait_time:.2f}s...")
-            if on_retry:
-                try:
-                    await on_retry(attempt, wait_time, reason)
-                except Exception:
-                    pass
-            await asyncio.sleep(wait_time)
+            # ── 3. All keys exhausted this round — backoff before retry ──
+            if round_num < max_rounds:
+                wait_time = min(base_delay * (1.5 ** (round_num - 1)), 8.0)
+                if hit_rate_limit:
+                    wait_time = max(wait_time, 3.0)  # Minimum 3s on rate limits
+                
+                logger.warning(
+                    f"All {len(self.clients)} primary + {len(self.fallback_clients)} fallback keys failed "
+                    f"(round {round_num}). Retrying in {wait_time:.1f}s..."
+                )
+                if on_retry:
+                    try:
+                        await on_retry(round_num, wait_time, 
+                                       "rate limit" if hit_rate_limit else "transient error")
+                    except Exception:
+                        pass
+                await asyncio.sleep(wait_time)
+                hit_rate_limit = False  # Reset for next round
 
+        # All rounds exhausted
+        total_keys = len(self.clients) + len(self.fallback_clients)
+        logger.error(
+            f"LLM request failed after {max_rounds} rounds across {total_keys} keys. "
+            f"Last error: {last_exc}"
+        )
         if last_exc:
             raise last_exc
 
@@ -153,4 +200,5 @@ class LLMClient:
             "base_url": self.base_url,
             "status": "connected",
             "active_keys": len(self.keys),
+            "fallback_keys": len(self.fallback_clients),
         }
